@@ -9,7 +9,7 @@ echo "Iniciando el script de despliegue automatizado para Auth Service y API Gat
 # --- 1. Definición de Variables ---
 PROJECT_ROOT=$(pwd)
 AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
-API_GATEWAY_DIR="$PROJECT_ROOT/api-gateway" # Nuevo directorio para el Gateway
+API_GATEWAY_DIR="$PROJECT_ROOT/api-gateway"
 
 POSTGRES_USER="aura_auth_user"
 POSTGRES_PASSWORD="aurapassword" # ¡ATENCIÓN: Cambiar por una contraseña segura en producción!
@@ -17,7 +17,7 @@ POSTGRES_DB="aura_auth_db"
 JWT_SECRET="your_very_long_and_complex_jwt_secret_key_for_auth" # ¡ATENCIÓN: Generar y gestionar de forma segura en producción!
 
 AUTH_SERVICE_PORT=3001
-API_GATEWAY_PORT=3000 # Nuevo puerto para el API Gateway
+API_GATEWAY_PORT=3000
 
 # --- 2. Funciones de Comprobación e Instalación de Requisitos ---
 
@@ -38,6 +38,7 @@ check_and_install() {
 check_docker() {
     if ! command -v docker &> /dev/null; then
         echo "Docker no está instalado. Instalando Docker..."
+        # Scripts oficiales de Docker
         sudo apt update
         sudo apt install -y ca-certificates curl gnupg
         sudo install -m 0755 -d /etc/apt/keyrings
@@ -52,21 +53,38 @@ check_docker() {
 
         echo "Añadiendo el usuario actual al grupo docker para ejecutar comandos sin sudo..."
         sudo usermod -aG docker "$USER"
-        echo "¡Advertencia! Necesitarás cerrar sesión y volver a iniciarla (o reiniciar) para que los cambios del grupo Docker surtan efecto."
-        echo "Por favor, reinicia tu terminal o cierra/inicia sesión antes de intentar ejecutar comandos Docker sin sudo."
+        echo "========================================================================"
+        echo "¡IMPORTANTE: Docker se acaba de instalar y/o tu usuario se añadió al grupo 'docker'!"
+        echo "Necesitas CERRAR Y VOLVER A INICIAR TU SESIÓN SSH (o reiniciar la instancia) para que los permisos surtan efecto."
+        echo "Por favor, cierra esta sesión y conéctate de nuevo. Luego, ejecuta este script otra vez."
+        echo "========================================================================"
+        exit 0 # Sale del script, el usuario debe re-ejecutarlo
     else
         echo "Docker ya está instalado."
+        # Verificar si el usuario está en el grupo docker si Docker ya estaba instalado
+        if ! id -nG "$USER" | grep -qw "docker"; then
+            echo "El usuario '$USER' no está en el grupo 'docker', intentando añadirlo..."
+            sudo usermod -aG docker "$USER"
+            echo "========================================================================"
+            echo "¡IMPORTANTE: Tu usuario se añadió al grupo 'docker'!"
+            echo "Necesitas CERRAR Y VOLVER A INICIAR TU SESIÓN SSH (o reiniciar la instancia) para que los permisos surtan efecto."
+            echo "Por favor, cierra esta sesión y conéctate de nuevo. Luego, ejecuta este script otra vez."
+            echo "========================================================================"
+            exit 0 # Sale del script
+        fi
     fi
 
-    if ! command -v docker-compose &> /dev/null; then
-        echo "docker-compose (plugin) ya está instalado."
+    # Verificar si docker compose funciona sin sudo
+    if ! docker compose version &> /dev/null; then
+        echo "Error: docker-compose plugin no parece estar funcionando o no tienes permisos sin sudo."
+        echo "========================================================================"
+        echo "¡Advertencia crítica! Docker compose no responde o no tienes los permisos correctos."
+        echo "Asegúrate de haber reiniciado tu terminal o sesión SSH después de añadirte al grupo 'docker'."
+        echo "Por favor, verifica manualmente el estado de Docker y docker-compose."
+        echo "========================================================================"
+        exit 1
     else
-        echo "docker-compose (plugin) no encontrado, pero ya se debería haber instalado con Docker Engine. Verificando..."
-        if docker compose version &> /dev/null; then
-            echo "docker-compose (plugin) funciona correctamente."
-        else
-            echo "Error: docker-compose plugin no parece estar funcionando. Intenta instalarlo manualmente si persiste el problema."
-        fi
+        echo "Docker y docker-compose funcionan correctamente."
     fi
 }
 
@@ -105,9 +123,8 @@ echo "Dockerfile creado en $API_GATEWAY_DIR/Dockerfile"
 
 # --- 6. Crear archivo docker-compose.yml ---
 echo -e "\n--- Creando docker-compose.yml ---"
+# Eliminar la línea 'version' obsoleta
 cat <<EOF > "$PROJECT_ROOT/docker-compose.yml"
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
@@ -199,6 +216,7 @@ echo "init.sql creado en $PROJECT_ROOT/init.sql"
 echo -e "\n--- Desplegando los servicios con Docker Compose ---"
 cd "$PROJECT_ROOT" || { echo "Error: No se pudo cambiar al directorio raíz del proyecto."; exit 1; }
 
+# Intentar desplegar. Si falla por permisos, el script ya habrá salido antes
 docker compose up --build -d || { echo "Error al desplegar los servicios Docker. Abortando."; exit 1; }
 
 echo -e "\n--- Proceso de despliegue completado ---"
@@ -207,4 +225,3 @@ echo "API Gateway debería estar accesible en http://localhost:${API_GATEWAY_POR
 echo "Puedes ver los logs con: docker compose logs -f"
 echo "Para detener los servicios: docker compose down"
 echo "Para reiniciar un servicio (ej. auth-service): docker compose up --build -d auth-service"
-echo "¡Recuerda que si acabas de instalar Docker, puede que necesites cerrar y abrir tu terminal (o reiniciar) para usar 'docker' sin sudo!"
