@@ -96,10 +96,9 @@ check_docker
 # --- 4. Crear Dockerfile para el Auth Service ---
 echo -e "\n--- Creando Dockerfile para auth-service ---"
 cat <<EOF > "$AUTH_SERVICE_DIR/Dockerfile"
-FROM node:20-alpine
+FROM node:20-slim
 WORKDIR /usr/src/app
 COPY package*.json ./
-RUN apk add --no-cache openssl1.1-compat
 RUN npm install
 COPY prisma ./prisma/
 RUN npx prisma generate
