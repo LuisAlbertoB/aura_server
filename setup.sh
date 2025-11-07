@@ -100,9 +100,10 @@ FROM node:20-alpine
 WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
+RUN npx prisma generate
 COPY . .
 EXPOSE ${AUTH_SERVICE_PORT}
-CMD [ "npm", "start" ]
+CMD [ "npm", "run", "dev" ]
 EOF
 echo "Dockerfile creado en $AUTH_SERVICE_DIR/Dockerfile"
 
@@ -116,7 +117,7 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 EXPOSE ${API_GATEWAY_PORT}
-CMD [ "npm", "start" ]
+CMD [ "npm", "run", "dev" ]
 EOF
 echo "Dockerfile creado en $API_GATEWAY_DIR/Dockerfile"
 
