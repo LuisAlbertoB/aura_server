@@ -211,10 +211,18 @@ CREATE TABLE IF NOT EXISTS users (
 EOF
 echo "init.sql creado en $PROJECT_ROOT/init.sql"
 
+# 🛠️ CORRECCIÓN AÑADIDA: Asegurar que el archivo init.sql sea legible para el contenedor.
+echo "Ajustando permisos de lectura para init.sql..."
+chmod +r "$PROJECT_ROOT/init.sql"
+
 
 # --- 8. Desplegar el proyecto con Docker Compose ---
 echo -e "\n--- Desplegando los servicios con Docker Compose ---"
 cd "$PROJECT_ROOT" || { echo "Error: No se pudo cambiar al directorio raíz del proyecto."; exit 1; }
+
+# 🛠️ MEJORA AÑADIDA: Limpiar cualquier intento anterior fallido
+echo "Deteniendo y eliminando contenedores/redes anteriores (docker compose down)..."
+docker compose down
 
 # Intentar desplegar. Si falla por permisos, el script ya habrá salido antes
 docker compose up --build -d || { echo "Error al desplegar los servicios Docker. Abortando."; exit 1; }
