@@ -99,6 +99,7 @@ cat <<EOF > "$AUTH_SERVICE_DIR/Dockerfile"
 FROM node:20-alpine
 WORKDIR /usr/src/app
 COPY package*.json ./
+RUN apk add --no-cache openssl1.1-compat
 RUN npm install
 COPY prisma ./prisma/
 RUN npx prisma generate
