@@ -37,16 +37,17 @@ El Auth Service se integra en la arquitectura de microservicios de Aura de la si
 **Diagrama de Componentes (Auth Service)**
 
 ```mermaid
-graph TD
+flowchart TD
     A[Cliente (App Flutter)] --> B(Amazon API Gateway);
     B --> C{Auth Service};
     C --> D[Base de Datos PostgreSQL (RDS)];
+    C1[src/routes/authRoutes.js] --> C2[src/middlewares/validationMiddleware.js];
+    C1 --> C3[src/middlewares/authMiddleware.js];
+    C1 --> C4[src/controllers/authController.js];
+    C4 --> D;
 
     subgraph Auth Service Internal
-        C1[src/routes/authRoutes.js] --> C2[src/middlewares/validationMiddleware.js];
-        C1 --> C3[src/middlewares/authMiddleware.js];
-        C1 --> C4[src/controllers/authController.js];
-        C4 --> D;
+        C1; C2; C3; C4;
     end
 
     style C fill:#f9f,stroke:#333,stroke-width:2px;
