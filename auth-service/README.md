@@ -1,11 +1,11 @@
 # Auth Service Microservice
 
-Este microservicio forma parte de una arquitectura de microservicios más grande, `aura_server`. Su objetivo principal es gestionar la autenticación y autorización de usuarios, proporcionando funcionalidades para el registro, inicio de sesión, y gestión básica de perfiles.
+Este microservicio es un componente central de la arquitectura `aura_server`, diseñado para gestionar de forma segura la autenticación y autorización de usuarios. Proporciona funcionalidades clave como registro, inicio de sesión y gestión de perfiles, utilizando un stack tecnológico moderno y robusto.
 
 ## 🚀 Stack Tecnológico
 
 *   **Entorno de ejecución:** Node.js
-*   **Framework Web:** Express.js
+*   **Framework:** Express.js
 *   **Base de Datos:** PostgreSQL
 *   **ORM:** Prisma
 *   **Hash de Contraseñas:** Bcrypt.js
@@ -31,9 +31,10 @@ Este microservicio forma parte de una arquitectura de microservicios más grande
 ├── models
 │ └── (generado por Prisma, ej. node_modules/@prisma/client/index.d.ts)
 └── routes
-└── authRoutes.js
-code
-Code
+    └── authRoutes.js
+```
+```
+
 ## 📝 Modelos/Entidades de la Base de Datos
 
 ### `roles`
@@ -57,49 +58,18 @@ Code
 
 ## 🛠️ Configuración y Ejecución
 
-1.  **Clonar el repositorio (si aplica) y navegar:**
+Este microservicio está diseñado para ser desplegado fácilmente con Docker, gestionado por el script `setup.sh` en la raíz del proyecto `aura_server`. Este script automatiza la creación de los Dockerfiles, el archivo `docker-compose.yml` y la configuración inicial de la base de datos.
 
-    ```bash
-    git clone <tu_repo_url>
-    cd aura_server/auth-service
-    ```
+1.  **Requisitos Previos:**
+    *   Docker y Docker Compose deben estar instalados. El script `setup.sh` puede instalarlos si no los detecta.
 
-2.  **Configurar PostgreSQL:**
-    Asegúrate de tener una instancia de PostgreSQL en funcionamiento. Crea la base de datos `aura_auth_db` y las tablas `roles` y `users` utilizando el script SQL proporcionado o generando las migraciones con Prisma.
-
-    ```sql
-    -- Ejemplo de creación de DB y tablas (en psql)
-    CREATE DATABASE aura_auth_db;
-    \c aura_auth_db
-
-    CREATE TABLE roles (
-        id_role SERIAL PRIMARY KEY,
-        role_name VARCHAR(50) UNIQUE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    INSERT INTO roles (role_name) VALUES ('admin'), ('user');
-
-    CREATE TABLE users (
-        user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        username VARCHAR(100) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        id_role INTEGER NOT NULL DEFAULT (SELECT id_role FROM roles WHERE role_name = 'user'),
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_role
-            FOREIGN KEY (id_role)
-            REFERENCES roles (id_role)
-            ON DELETE RESTRICT
-    );
-    ```
-
-3.  **Instalar dependencias:**
+2.  **Instalar dependencias (si se ejecuta localmente fuera de Docker):**
 
     ```bash
     npm install
     ```
 
-4.  **Configurar variables de entorno:**
+3.  **Configurar variables de entorno (para ejecución local):**
     Crea un archivo `.env` en la raíz del microservicio (`auth-service/`) con el siguiente contenido, reemplazando los valores `your_...` con tus propias credenciales y claves secretas:
 
     ```env
@@ -108,13 +78,13 @@ Code
     PORT=3001
     ```
 
-5.  **Generar Cliente Prisma:**
+4.  **Generar Cliente Prisma (para ejecución local):**
 
     ```bash
     npx prisma generate
     ```
 
-6.  **Iniciar el servidor:**
+5.  **Iniciar el servidor (para ejecución local):**
 
     *   **Modo desarrollo (con `nodemon`):**
         ```bash
@@ -127,6 +97,12 @@ Code
 
     El servicio estará disponible en `http://localhost:3001`.
 
+6.  **Despliegue con Docker (Recomendado):**
+    Desde el directorio raíz `aura_server`, ejecuta el script de despliegue:
+    ```bash
+    ./setup.sh
+    ```
+    Esto levantará todos los servicios, incluyendo la base de datos, el servicio de autenticación y el API Gateway.
 ## 🌐 Endpoints
 
 Todos los endpoints están prefijados con `/api/auth`.
@@ -138,93 +114,113 @@ Todos los endpoints están prefijados con `/api/auth`.
 | `GET`  | `/api/auth/profile`| Obtiene el perfil del usuario autenticado.                                                 | JWT            | Usuario      |
 | `GET`  | `/api/auth/users` | Obtiene la lista de todos los usuarios (solo para administradores).                        | JWT            | Admin        |
 
+---
+
 ## 🔒 Validaciones y Seguridad Implementadas
 
-Este microservicio implementa un conjunto robusto de validaciones y medidas de seguridad siguiendo las mejores prácticas:
+Este microservicio implementa un conjunto robusto de validaciones y medidas de seguridad siguiendo las mejores prácticas.
 
-### 2. Validación del Lado del Servidor
+### 1. Transacciones Seguras con Prisma
+> Prisma garantiza la **atomicidad** en las operaciones de escritura que involucran relaciones. En el endpoint de registro, la creación del `user` y la conexión (`connect`) con su `role` se ejecutan dentro de una única transacción. Esto asegura que si la conexión con el rol falla, la creación del usuario también se revierte, manteniendo la consistencia e integridad de los datos.
+> *   **Librería:** `@prisma/client`
+> *   **Implementación:** `src/controllers/authController.js`
 
-*   **Validación de Autenticidad**: [Ver `authMiddleware.js`, `verifyToken`] Se verifica la autenticidad del token JWT recibido para asegurar que la petición proviene de un usuario legítimo.
-*   **Validación de Consistencia**: [Ver `authController.js`, `register`] Antes de registrar un nuevo usuario, se verifica que el correo electrónico y el nombre de usuario no existan previamente en la base de datos.
-*   **Validación de Integridad**: [Ver `authMiddleware.js`, `verifyToken`] La verificación del token JWT comprueba que no haya sido alterado durante la transmisión.
-*   **Validación de Permisos**: [Ver `authMiddleware.js`, `authorizeRole`] Se implementa un middleware (`authorizeRole`) para restringir el acceso a ciertos endpoints basándose en el rol del usuario (ej., `'/api/auth/users'` solo para 'admin').
+```javascript
+const newUser = await prisma.user.create({
+    data: {
+        username,
+        email,
+        password_hash,
+        role: {
+            // Esta operación anidada se ejecuta en la misma transacción
+            connect: { role_name: 'user' } 
+        }
+    },
+    // ...
+});
+```
 
-### 3. Validación de Tipo
+### 2. Validación Rigurosa en el Servidor
+> Se implementan múltiples capas de validación para proteger los endpoints y la base de datos.
+*   **Autenticidad y Permisos**: Se verifica la validez de cada token JWT y se restringe el acceso a endpoints específicos (ej. solo `admin`) usando middlewares (`verifyToken`, `authorizeRole`).
+*   **Consistencia de Datos**: Antes de crear un usuario, se comprueba que el `email` y `username` no estén ya en uso para evitar duplicados.
+*   **Integridad del Token**: La firma del JWT se valida para asegurar que no ha sido manipulado.
+> *   **Implementación:** `src/controllers/authController.js`
 
-*   [Ver `validationMiddleware.js`, `registerValidation`, `loginValidation`] Se utilizan `express-validator` y `validator.js` para asegurar que los datos ingresados (ej., `email`, `password`, `username`) corresponden al tipo esperado (ej., `isEmail`, `isLength`).
-
-### 5. Validación de Patrones y Reglas Específicas
-
-*   **Direcciones de Correo Electrónico**: [Ver `validationMiddleware.js`, `registerValidation`, `loginValidation`] Se utiliza `isEmail()` para verificar el formato del correo electrónico.
-*   **Contraseñas Fuertes**: [Ver `validationMiddleware.js`, `registerValidation`] Se aplican reglas estrictas para la longitud mínima y la inclusión de mayúsculas, minúsculas, números y caracteres especiales.
-*   **Nombres de Usuario**: [Ver `validationMiddleware.js`, `registerValidation`] Se valida un patrón (`/^[a-zA-Z0-9_]+$/`) para asegurar que el nombre de usuario solo contenga caracteres permitidos.
-
-### 8. Sanitización de Entrada
-
-La sanitización se aplica para neutralizar contenido malicioso en los datos de entrada:
-
-*   **a. Escapado de Caracteres**:
-    *   **HTML Escaping**: [Ver `validationMiddleware.js`, `registerValidation`, `loginValidation`, `escape()`] Se usa `escape()` de `express-validator` para convertir caracteres HTML especiales a sus entidades correspondientes, previniendo ataques XSS.
-    *   **JavaScript Escaping**: [Ver `validationMiddleware.js`, `sanitizeInput`, `validator.escape()`] Se aplica para escapar caracteres que podrían ser interpretados como código JavaScript.
-    *   **SQL Escaping**: [Ver `validationMiddleware.js`, `sanitizeInput`, `validator.blacklist()`] Aunque Prisma ORM ya previene inyecciones SQL, se incluye un ejemplo de `blacklist()` como medida adicional en caso de inputs no controlados por el ORM.
-*   **c. Validación de Tipo de Datos**:
-    *   **Tipos Primitivos**: [Ver `validationMiddleware.js`] `express-validator` asegura que los datos sean del tipo correcto (ej., `isEmail` verifica que sea una cadena con formato de email).
-    *   **Estructuras de Datos**: `express.json()` se encarga de parsear JSON, y las validaciones posteriores confirman el formato esperado de los campos dentro del JSON.
-*   **f. Uso de Funciones y Librerías Seguras**:
-    *   **ORMs (Object-Relational Mappers)**: [Ver `authController.js`, `prisma`] Se utiliza Prisma ORM para todas las interacciones con la base de datos, lo que proporciona una protección inherente contra la mayoría de los ataques de inyección SQL.
-    *   **Librerías de Escapado**: [Ver `validationMiddleware.js`] Se utiliza `express-validator` y `validator.js`, librerías que implementan funciones de sanitización y validación seguras y actualizadas.
-*   **h. Canonicalización**:
-    *   **Normalización de Email**: [Ver `validationMiddleware.js`, `normalizeEmail()`] Se usa `normalizeEmail()` para convertir los correos electrónicos a un formato estándar, evitando diferentes representaciones del mismo valor.
-*   **j. Revisiones y Auditorías de Código**:
-    *   **Código Estático**: Se recomienda el uso de herramientas de análisis de código estático (ESLint, SonarQube) para detectar vulnerabilidades en tiempo de desarrollo. (No implementado directamente en el código base, pero es una práctica recomendada).
-    *   **Pruebas de Penetración**: Se recomienda realizar pruebas de penetración regulares para identificar y corregir debilidades en la sanitización de entradas y otras áreas de seguridad. (No implementado directamente en el código base, pero es una práctica recomendada).
-
-### 9. Uso de Librerías y Frameworks de Validación
-
-*   [Ver `package.json`, `express-validator`, `validator`] Se emplean `express-validator` y `validator.js`, que son librerías de validación bien mantenidas y ampliamente utilizadas en el ecosistema de Node.js, incorporando las mejores prácticas de seguridad.
-
-### 11. Gestión de Errores Adecuada
-
-*   [Ver `authController.js`, `validationMiddleware.js`, `index.js`] Los errores de validación y los errores internos del servidor se manejan de manera que no revelen información sensible que pueda ser explotada por atacantes. Los mensajes de error son genéricos para evitar dar pistas sobre la lógica interna o la existencia de usuarios/emails. Se incluye un middleware de manejo de errores global en `index.js`.
-
-## 🧪 Pruebas (Postman)
-
-Puedes usar Postman para probar los endpoints:
-
-### Registrar Usuario (`POST /api/auth/register`)
-
-**Headers:**
-`Content-Type: application/json`
-
-**Body (raw JSON):**
-
-```json
-{
-    "username": "testuser",
-    "email": "test@example.com",
-    "password": "StrongPassword123!"
+```javascript
+// Validación de Consistencia: Verificar si el usuario o email ya existen
+const existingUser = await prisma.user.findUnique({ where: { email } });
+if (existingUser) {
+    return res.status(409).json({ message: 'User with this email already exists.' });
 }
-Iniciar Sesión (POST /api/auth/login)
-Headers:
-Content-Type: application/json
-Body (raw JSON):
-code
-JSON
-{
-    "email": "test@example.com",
-    "password": "StrongPassword123!"
+const existingUsername = await prisma.user.findUnique({ where: { username } });
+if (existingUsername) {
+    return res.status(409).json({ message: 'Username is already taken.' });
 }
-Respuesta exitosa contendrá un token.
-Obtener Perfil (GET /api/auth/profile)
-Headers:
-Authorization: Bearer <your_jwt_token> (Reemplaza <your_jwt_token> con el token obtenido del login)
-Obtener Todos los Usuarios (GET /api/auth/users)
-Para un usuario 'admin':
-Crea un usuario con el rol 'admin' directamente en la base de datos (o modifica un usuario existente).
-code
-SQL
-UPDATE users SET id_role = (SELECT id_role FROM roles WHERE role_name = 'admin') WHERE email = 'admin@example.com';
-Inicia sesión con ese usuario 'admin' para obtener un token.
-Usa el token del admin en el header: Authorization: Bearer <admin_jwt_token>
-Para un usuario 'user':
-Si intentas acceder con un token de un usuario con rol 'user', recibirás un 403 Forbidden.
+```
+
+### 3. Validación de Formato y Patrones
+> Se utiliza `express-validator` para asegurar que todos los datos de entrada cumplan con las reglas de negocio antes de ser procesados.
+*   **Tipos de Datos**: Se valida que campos como `email` y `password` tengan el formato y tipo correctos (`isEmail`, `isLength`).
+*   **Contraseñas Fuertes**: Se exige una combinación de mayúsculas, minúsculas, números y símbolos.
+*   **Nombres de Usuario**: Se valida un patrón (`/^[a-zA-Z0-9_]+$/`) para que solo contenga caracteres permitidos.
+> *   **Implementación:** `src/middlewares/validationMiddleware.js` (Ejemplo de uso en rutas)
+
+```javascript
+// En `src/routes/authRoutes.js`, se aplican las validaciones antes del controlador:
+const { registerValidation, loginValidation } = require('../middlewares/validationMiddleware');
+
+router.post('/register', registerValidation, authController.register);
+router.post('/login', loginValidation, authController.login);
+```
+
+### 4. Sanitización de Entradas
+> Para prevenir ataques como XSS (Cross-Site Scripting), todas las entradas son sanitizadas.
+*   **Escapado de Caracteres**: Se usa `escape()` para convertir caracteres HTML (`<`, `>`, `&`, etc.) en entidades, neutralizando scripts maliciosos.
+*   **Normalización**: Se normalizan los correos electrónicos (`normalizeEmail()`) para estandarizar su formato y evitar evasiones.
+> *   **Implementación:** `src/middlewares/validationMiddleware.js`
+
+```javascript
+// Ejemplo de regla de validación y sanitización en `validationMiddleware.js`
+const { body } = require('express-validator');
+
+const registerValidation = [
+    body('email').isEmail().normalizeEmail(),
+    body('username').trim().escape(),
+    // ... más validaciones
+];
+```
+
+### 5. Uso de Librerías Seguras
+> La seguridad se delega en librerías auditadas y mantenidas por la comunidad.
+*   **ORM (Prisma)**: Previene ataques de inyección SQL al parametrizar todas las consultas a la base de datos de forma automática.
+*   **Validación (Express-validator)**: Proporciona un conjunto de herramientas robustas para validar y sanitizar datos de manera segura.
+> *   **Implementación:** `src/controllers/authController.js`
+
+```javascript
+// Prisma parametriza automáticamente el valor de 'email' para prevenir inyección SQL.
+const user = await prisma.user.findUnique({
+    where: { email }, // El valor de 'email' es manejado de forma segura
+    include: { role: true }
+});
+```
+
+### 6. Gestión Segura de Errores
+> Los errores se manejan de forma controlada para no exponer información sensible.
+*   **Mensajes Genéricos**: De cara al cliente, los errores (ej. "Invalid credentials") son intencionadamente ambiguos para no revelar si un usuario existe o no.
+*   **No Exposición de Stack Traces**: Los errores internos se registran en el servidor, pero nunca se envían los detalles completos al cliente.
+> *   **Implementación:** `src/controllers/authController.js` y `index.js`
+
+```javascript
+// Mensaje genérico en el login para no revelar información
+const isMatch = await bcrypt.compare(password, user.password_hash);
+if (!isMatch) {
+    return res.status(401).json({ message: 'Invalid credentials.' });
+}
+
+// Middleware global en index.js para capturar errores no controlados
+app.use((err, req, res, next) => {
+    console.error(err.stack); // Loguea el error completo en el servidor
+    res.status(500).json({ message: 'Something broke!' }); // Envía respuesta genérica
+});
+```
