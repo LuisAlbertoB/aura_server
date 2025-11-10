@@ -18,7 +18,11 @@ echo "🚀 Iniciando la configuración del entorno para Auth Service..."
 # --- 1. Definición de Variables ---
 PROJECT_ROOT=$(pwd)
 AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
-ENV_FILE="$AUTH_SERVICE_DIR/.env"
+
+# Credenciales para la base de datos (usadas directamente)
+POSTGRES_USER="aura_auth_user"
+POSTGRES_PASSWORD="aurapassword"
+POSTGRES_DB="aura_auth_db"
 
 # --- 2. Verificación e Instalación de Dependencias del Sistema ---
 
@@ -53,29 +57,7 @@ fi
 
 echo -e "\n--- 🐘 Configurando la base de datos PostgreSQL ---"
 
-# Verificar que el archivo .env exista
-if [ ! -f "$ENV_FILE" ]; then
-    echo "❌ Error: El archivo .env no se encuentra en $AUTH_SERVICE_DIR."
-    echo "Por favor, asegúrate de que el archivo .env exista antes de ejecutar este script."
-    exit 1
-fi
-
-# Extraer las credenciales del archivo .env
-echo "Leyendo credenciales desde $ENV_FILE..."
-DATABASE_URL=$(grep DATABASE_URL "$ENV_FILE" | cut -d '"' -f 2)
-
-# Extraer usuario, contraseña y nombre de la DB de la URL de conexión
-POSTGRES_USER=$(echo "$DATABASE_URL" | sed -n 's/postgresql:\/\/\([^:]*\):.*/\1/p')
-POSTGRES_PASSWORD=$(echo "$DATABASE_URL" | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
-POSTGRES_DB=$(echo "$DATABASE_URL" | sed -n 's/.*@.*\/\(?*\)/\1/p' | cut -d '?' -f 1)
-
-if [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ] || [ -z "$POSTGRES_DB" ]; then
-    echo "❌ Error: No se pudieron extraer las credenciales de la base de datos desde el archivo .env."
-    echo "Asegúrate de que la variable DATABASE_URL tenga el formato correcto."
-    exit 1
-fi
-
-echo "Credenciales extraídas: Usuario='${POSTGRES_USER}', Base de Datos='${POSTGRES_DB}'"
+echo "Usando credenciales predefinidas: Usuario='${POSTGRES_USER}', Base de Datos='${POSTGRES_DB}'"
 
 # Crear el usuario en PostgreSQL si no existe
 if ! sudo -u postgres psql -t -c '\du' | cut -d \| -f 1 | grep -qw "$POSTGRES_USER"; then
