@@ -16,9 +16,11 @@ set -e # Salir inmediatamente si un comando falla.
 echo "🚀 Iniciando la configuración del entorno para Auth Service..."
 
 # --- 1. Definición de Variables ---
-# Navega al directorio del script para asegurar que las rutas relativas funcionen
-PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
+# Determina el directorio donde se encuentra este script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+# Si el script está en 'auth-service', entonces SCRIPT_DIR es AUTH_SERVICE_DIR y PROJECT_ROOT es su padre.
+AUTH_SERVICE_DIR="$SCRIPT_DIR"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Credenciales para la base de datos (usadas directamente)
 POSTGRES_USER="aura_auth_user"
