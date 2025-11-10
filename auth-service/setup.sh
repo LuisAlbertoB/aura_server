@@ -16,7 +16,9 @@ set -e # Salir inmediatamente si un comando falla.
 echo "🚀 Iniciando la configuración del entorno para Auth Service..."
 
 # --- 1. Definición de Variables ---
-PROJECT_ROOT=$(pwd)
+# Navega al directorio del script para asegurar que las rutas relativas funcionen
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")" # Sube un nivel para llegar a la raíz del proyecto
 AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
 
 # Credenciales para la base de datos (usadas directamente)
