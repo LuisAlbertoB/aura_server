@@ -86,28 +86,11 @@ echo "Instalando dependencias de npm en $AUTH_SERVICE_DIR..."
 cd "$AUTH_SERVICE_DIR"
 npm install
 
-# Ejecutar la migración directamente en la base de datos sin crear un archivo intermedio
-echo "Ejecutando migración de la base de datos..."
-sudo -u postgres psql -d "$POSTGRES_DB" <<EOF
-    CREATE TABLE IF NOT EXISTS roles (
-        id_role SERIAL PRIMARY KEY,
-        role_name VARCHAR(50) UNIQUE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    INSERT INTO roles (role_name) VALUES ('admin'), ('user') ON CONFLICT (role_name) DO NOTHING;
-    CREATE TABLE IF NOT EXISTS users (
-        user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        username VARCHAR(100) UNIQUE NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
-        password_hash VARCHAR(255) NOT NULL,
-        id_role INTEGER NOT NULL DEFAULT 2, -- Asumiendo que 'user' siempre tiene id_role = 2
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT fk_role FOREIGN KEY (id_role) REFERENCES roles (id_role) ON DELETE RESTRICT
-    );
-EOF
+# Ejecutar las migraciones de Prisma para crear el esquema de la base de datos
+echo "Ejecutando migraciones de Prisma..."
+npx prisma migrate deploy
 echo "✅ Migración de la base de datos completada."
 
 echo -e "\n\n🎉 ¡Todo listo! 🎉"
 echo "El entorno ha sido configurado exitosamente."
-echo "Navega al directorio del servicio con: cd auth-service"
 echo "Luego, ejecuta el servicio con: npm run dev"
