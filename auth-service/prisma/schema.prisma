@@ -28,5 +28,20 @@ model User {
   createdAt   DateTime @default(now()) @map("created_at")
   role        Role     @relation(fields: [id_role], references: [id_role], onDelete: Restrict)
 
+  profile UserProfile? // Relación 1:1 con el perfil de usuario
+
   @@map("users")
+}
+
+model UserProfile {
+  user_id             String   @id @db.Uuid
+  fullname            String?  @db.VarChar(200)
+  bio                 String?
+  profile_picture_url String?  @db.VarChar(255)
+  interests           String[] @db.VarChar(50)
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  @@index([interests], type: Gin)
+  @@map("user_profiles")
 }

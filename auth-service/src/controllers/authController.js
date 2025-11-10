@@ -134,9 +134,42 @@ const getAllUsers = async (req, res) => {
     }
 };
 
+const updateInterests = async (req, res) => {
+    // El ID del usuario se obtiene del token JWT verificado por el middleware
+    const userId = req.userId;
+    const { interests } = req.body;
+
+    // Validación básica de la entrada
+    if (!Array.isArray(interests) || interests.some(i => typeof i !== 'string')) {
+        return res.status(400).json({ message: "Interests must be an array of strings." });
+    }
+
+    try {
+        // Usamos 'upsert' para crear el perfil si no existe, o actualizarlo si ya existe.
+        // Esto es muy robusto y evita errores si el usuario guarda intereses por primera vez.
+        const userProfile = await prisma.userProfile.upsert({
+            where: { user_id: userId },
+            update: {
+                interests: interests, // Sobrescribe el array de intereses
+            },
+            create: {
+                user_id: userId,
+                interests: interests,
+                // Los otros campos del perfil (fullname, bio) se crearán como NULL
+            },
+        });
+
+        res.status(200).json({ message: "Interests saved successfully.", interests: userProfile.interests });
+    } catch (error) {
+        console.error('Error saving interests:', error);
+        res.status(500).json({ message: "Internal server error while processing the request." });
+    }
+};
+
 module.exports = {
     register,
     login,
     getProfile,
-    getAllUsers
+    getAllUsers,
+    updateInterests,
 };
