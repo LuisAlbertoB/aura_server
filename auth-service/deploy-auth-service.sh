@@ -16,11 +16,9 @@ set -e # Salir inmediatamente si un comando falla.
 echo "🚀 Iniciando la configuración del entorno para Auth Service..."
 
 # --- 1. Definición de Variables ---
-# Determina el directorio donde se encuentra este script
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-# Si el script está en 'auth-service', entonces SCRIPT_DIR es AUTH_SERVICE_DIR y PROJECT_ROOT es su padre.
-AUTH_SERVICE_DIR="$SCRIPT_DIR"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+# Navega al directorio del script para asegurar que las rutas relativas funcionen
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
 
 # Credenciales para la base de datos (usadas directamente)
 POSTGRES_USER="aura_auth_user"
@@ -102,7 +100,7 @@ sudo -u postgres psql -d "$POSTGRES_DB" <<EOF
         username VARCHAR(100) UNIQUE NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
-        id_role INTEGER NOT NULL DEFAULT (SELECT id_role FROM roles WHERE role_name = 'user'),
+        id_role INTEGER NOT NULL DEFAULT 2, -- Asumiendo que 'user' siempre tiene id_role = 2
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_role FOREIGN KEY (id_role) REFERENCES roles (id_role) ON DELETE RESTRICT
     );
