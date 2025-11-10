@@ -17,8 +17,7 @@ echo "🚀 Iniciando la configuración del entorno para Auth Service..."
 
 # --- 1. Definición de Variables ---
 # Navega al directorio del script para asegurar que las rutas relativas funcionen
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")" # Sube un nivel para llegar a la raíz del proyecto
+PROJECT_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
 
 # Credenciales para la base de datos (usadas directamente)
@@ -87,29 +86,25 @@ echo "Instalando dependencias de npm en $AUTH_SERVICE_DIR..."
 cd "$AUTH_SERVICE_DIR"
 npm install
 
-# Crear el script SQL para la migración
-echo "Creando script de inicialización de la base de datos (init.sql)..."
-cat <<EOF > "$PROJECT_ROOT/init.sql"
-CREATE TABLE IF NOT EXISTS roles (
-    id_role SERIAL PRIMARY KEY,
-    role_name VARCHAR(50) UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-INSERT INTO roles (role_name) VALUES ('admin'), ('user') ON CONFLICT (role_name) DO NOTHING;
-CREATE TABLE IF NOT EXISTS users (
-    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username VARCHAR(100) UNIQUE NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    id_role INTEGER NOT NULL DEFAULT (SELECT id_role FROM roles WHERE role_name = 'user'),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_role FOREIGN KEY (id_role) REFERENCES roles (id_role) ON DELETE RESTRICT
-);
-EOF
-
-# Ejecutar la migración en la base de datos
+# Ejecutar la migración directamente en la base de datos sin crear un archivo intermedio
 echo "Ejecutando migración de la base de datos..."
-sudo -u postgres psql -d "$POSTGRES_DB" -f "$PROJECT_ROOT/init.sql"
+sudo -u postgres psql -d "$POSTGRES_DB" <<EOF
+    CREATE TABLE IF NOT EXISTS roles (
+        id_role SERIAL PRIMARY KEY,
+        role_name VARCHAR(50) UNIQUE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO roles (role_name) VALUES ('admin'), ('user') ON CONFLICT (role_name) DO NOTHING;
+    CREATE TABLE IF NOT EXISTS users (
+        user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        username VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        id_role INTEGER NOT NULL DEFAULT (SELECT id_role FROM roles WHERE role_name = 'user'),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_role FOREIGN KEY (id_role) REFERENCES roles (id_role) ON DELETE RESTRICT
+    );
+EOF
 echo "✅ Migración de la base de datos completada."
 
 echo -e "\n\n🎉 ¡Todo listo! 🎉"
