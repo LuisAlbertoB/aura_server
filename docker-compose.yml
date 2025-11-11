@@ -8,9 +8,9 @@ services:
       POSTGRES_USER: aura_auth_user
       POSTGRES_PASSWORD: aurapassword
       POSTGRES_DB: aura_auth_db
-    # No exponemos el puerto de la DB al host si solo los servicios internos lo usan
-    # ports:
-    #   - "5432:5432"
+    # Exponemos el puerto de la DB al host para permitir conexiones externas (ej. migraciones manuales)
+    ports:
+      - "5432:5432"
     volumes:
       - auth_db_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql

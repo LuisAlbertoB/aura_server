@@ -6,8 +6,8 @@ Este microservicio es el pilar de la seguridad y gestión de usuarios para la pl
 ## ✨ Características Principales
 
 -   **Registro de Usuarios**: Creación de nuevas cuentas con contraseñas hasheadas.
--   **Autenticación Segura**: Inicio de sesión mediante email y contraseña con generación de JWT.
--   **Gestión de Perfiles**: Endpoints para que los usuarios vean y actualicen su información.
+-   **Autenticación Segura**: Inicio de sesión mediante email y contraseña con generación de JWT. [1]
+-   **Gestión de Perfiles**: Endpoint para que los usuarios vean su información de perfil.
 -   **Control de Acceso Basado en Roles (RBAC)**: Middleware para proteger rutas según el rol del usuario (ej. `admin`, `user`).
 -   **Seguridad Reforzada**: Implementa **Helmet**, **CORS**, validación de entradas y sanitización para prevenir vulnerabilidades comunes.
 -   **Despliegue Automatizado**: Incluye un script para configurar el entorno y la base de datos en servidores Ubuntu.
@@ -60,15 +60,6 @@ Contiene la información esencial de autenticación de los usuarios.
 | `password_hash` | `VARCHAR(255)`           | Hash de la contraseña del usuario (generado con Bcrypt). |
 | `id_role`     | `INTEGER` (FK a `roles`) | ID del rol al que pertenece el usuario.   |
 | `created_at`  | `TIMESTAMP WITH TIME ZONE` | Marca de tiempo de creación del usuario.  |
-
-### `user_profiles`
-Almacena información adicional y extensible del perfil del usuario.
-
-| Campo       | Tipo       | Descripción                               |
-| :---------- | :--------- | :---------------------------------------- |
-| `user_id`   | `UUID` (PK, FK a `users`) | Referencia al `user_id` de la tabla `users`. |
-| `interests` | `TEXT[]`   | Un array de strings con los intereses del usuario. |
-| ...         | ...        | Futuros campos de perfil como `fullname`, `bio`, etc. |
 
 ## 🛠️ Configuración y Ejecución
 
@@ -136,7 +127,6 @@ La URL base para todos los endpoints es `http://98.95.86.245:3001/api/auth`.
 | `POST` | `/login`             | Inicia sesión y obtiene un token JWT.           | No            | Cualquiera   | `{"email": "nuevo@email.com", "password": "Password123!"}` | `200 OK` con el token JWT.               |
 | `GET`  | `/profile`           | Obtiene los datos del usuario autenticado.      | JWT Requerido | Usuario      | N/A                                                       | `200 OK` con los datos del perfil del usuario. |
 | `GET`  | `/users`             | Obtiene una lista de todos los usuarios.        | JWT Requerido | Admin        | N/A                                                       | `200 OK` con un array de todos los usuarios. |
-| `POST` | `/user/interests`    | Guarda o actualiza los intereses de un usuario. | JWT Requerido | Usuario      | `{"interests": ["tecnologia", "viajes", "musica"]}`       | `200 OK` con un mensaje de éxito y la lista de intereses guardados. |
 
 ## 👨‍💻 Tutorial de Uso
 
@@ -196,21 +186,6 @@ A continuación se detalla cómo probar cada endpoint usando la IP del servidor 
     -   **Tipo**: `Bearer Token`
     -   **Token**: `{{jwtToken}}` (Postman reemplazará esto con el valor de tu variable de entorno).
 -   **Resultado**: Recibirás un `200 OK` con los datos del usuario que acabas de registrar.
-
-**Paso 4: Actualizar Intereses (Ruta Protegida)**
-
--   **Método**: `POST`
--   **URL**: `{{baseURL}}/user/interests`
--   **Authorization**:
-    -   **Tipo**: `Bearer Token`
-    -   **Token**: `{{jwtToken}}`
--   **Body > raw > JSON**:
-    ```json
-    {
-        "interests": ["programacion", "inteligencia artificial", "viajes"]
-    }
-    ```
--   **Resultado**: Recibirás un `200 OK` con un mensaje de éxito y la lista de intereses que enviaste.
 
 ### 2. Consumir la API desde un Cliente (Ejemplo con JavaScript fetch)
 

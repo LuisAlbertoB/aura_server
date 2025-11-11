@@ -61,23 +61,24 @@ fi
 echo -e "\n--- 🐘 Configurando la base de datos PostgreSQL ---"
 
 echo "Usando credenciales predefinidas: Usuario='${POSTGRES_USER}', Base de Datos='${POSTGRES_DB}'"
+# Forzar la terminación de todas las conexiones a la base de datos antes de eliminarla
+echo "Terminando conexiones existentes a la base de datos '$POSTGRES_DB'..."
+sudo -u postgres psql -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = '${POSTGRES_DB}' AND pid <> pg_backend_pid();"
 
-# Crear el usuario en PostgreSQL si no existe
-if ! sudo -u postgres psql -t -c '\du' | cut -d \| -f 1 | grep -qw "$POSTGRES_USER"; then
-    echo "Creando usuario de base de datos: $POSTGRES_USER"
-    sudo -u postgres psql -c "CREATE USER ${POSTGRES_USER} WITH PASSWORD '${POSTGRES_PASSWORD}';"
-else
-    echo "✅ El usuario de la base de datos '$POSTGRES_USER' ya existe."
-fi
+# Ahora sí, eliminar la base de datos y el usuario para una configuración limpia
+echo "Eliminando la base de datos '$POSTGRES_DB' si existe..."
+sudo -u postgres psql -c "DROP DATABASE IF EXISTS ${POSTGRES_DB} WITH (FORCE);"
+echo "Eliminando usuario '$POSTGRES_USER' si existe..."
+sudo -u postgres psql -c "DROP USER IF EXISTS ${POSTGRES_USER};"
 
-# Crear la base de datos en PostgreSQL si no existe
-if ! sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw "$POSTGRES_DB"; then
-    echo "Creando base de datos: $POSTGRES_DB"
-    sudo -u postgres psql -c "CREATE DATABASE ${POSTGRES_DB} OWNER ${POSTGRES_USER};"
-    sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${POSTGRES_DB} TO ${POSTGRES_USER};"
-else
-    echo "✅ La base de datos '$POSTGRES_DB' ya existe."
-fi
+# Crear el usuario en PostgreSQL
+echo "Creando usuario de base de datos: $POSTGRES_USER"
+sudo -u postgres psql -c "CREATE USER ${POSTGRES_USER} WITH PASSWORD '${POSTGRES_PASSWORD}';"
+
+# Crear la base de datos en PostgreSQL
+echo "Creando base de datos: $POSTGRES_DB"
+sudo -u postgres psql -c "CREATE DATABASE ${POSTGRES_DB} OWNER ${POSTGRES_USER};"
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${POSTGRES_DB} TO ${POSTGRES_USER};"
 
 # --- 4. Instalación de Dependencias y Migración de la Base de Datos ---
 
@@ -95,9 +96,7 @@ echo "✅ Migración de la base de datos completada."
 
 # Insertar los roles por defecto si no existen
 echo "Insertando roles por defecto ('admin', 'user')..."
-sudo -u postgres psql -d "$POSTGRES_DB" <<EOF
-    INSERT INTO roles (role_name) VALUES ('admin'), ('user') ON CONFLICT (role_name) DO NOTHING;
-EOF
+sudo -u postgres psql -d "$POSTGRES_DB" -c "INSERT INTO roles (role_name) VALUES ('admin'), ('user') ON CONFLICT (role_name) DO NOTHING;"
 echo "✅ Roles por defecto insertados."
 
 echo -e "\n\n🎉 ¡Todo listo! 🎉"

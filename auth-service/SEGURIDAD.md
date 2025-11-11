@@ -34,29 +34,6 @@ El Auth Service se integra en la arquitectura de microservicios de Aura de la si
 3.  **Auth Service (AWS EC2)**: El API Gateway enruta las peticiones relacionadas con la autenticación y autorización al microservicio de autenticación, desplegado en una instancia EC2.
 4.  **Base de Datos (PostgreSQL con RDS)**: El Auth Service tiene su propia base de datos PostgreSQL aislada para almacenar información de usuarios y roles.
 
-**Diagrama de Componentes (Auth Service)**
-
-```mermaid
-flowchart TD
-    A[Cliente (App Flutter)] --> B(Amazon API Gateway);
-    B --> C{Auth Service};
-    C --> D[Base de Datos PostgreSQL (RDS)];
-    C1[src/routes/authRoutes.js] --> C2[src/middlewares/validationMiddleware.js];
-    C1 --> C3[src/middlewares/authMiddleware.js];
-    C1 --> C4[src/controllers/authController.js];
-    C4 --> D;
-
-    subgraph Auth Service Internal
-        C1; C2; C3; C4;
-    end
-
-    style C fill:#f9f,stroke:#333,stroke-width:2px;
-    style C1 fill:#bbf,stroke:#333,stroke-width:1px;
-    style C2 fill:#bbf,stroke:#333,stroke-width:1px;
-    style C3 fill:#bbf,stroke:#333,stroke-width:1px;
-    style C4 fill:#bbf,stroke:#333,stroke-width:1px;
-```
-
 ### Controles de Seguridad por Capa (dentro del Auth Service)
 
 El Auth Service implementa controles de seguridad específicos en sus diferentes capas:
@@ -105,7 +82,6 @@ El Auth Service maneja la siguiente información sensible:
 -   **Datos Internos**:
     -   **User ID (UUID)**: Identificador único universal del usuario.
     -   **Role ID/Name**: Identificador del rol asignado al usuario.
-    -   **Intereses del Usuario**: Información de perfil no crítica.
 
 **Controles por Tipo de Dato:**
 
@@ -130,7 +106,7 @@ El Auth Service encapsula las siguientes funciones de negocio y de seguridad:
 
 -   **Registro de Usuarios**: Permite a nuevos usuarios crear una cuenta en la plataforma.
 -   **Inicio de Sesión**: Autentica a los usuarios existentes y les proporciona un token de sesión.
--   **Gestión de Perfiles Básica**: Permite a los usuarios autenticados ver su información de perfil y actualizar sus intereses.
+-   **Gestión de Perfiles Básica**: Permite a los usuarios autenticados ver su información de perfil.
 -   **Listado de Usuarios (Admin)**: Proporciona una funcionalidad para que los administradores puedan ver una lista de todos los usuarios registrados.
 
 **Funciones de Seguridad:**
@@ -156,7 +132,7 @@ Se aplica el framework STRIDE para identificar amenazas y sus contramedidas espe
 
 ### Tampering (Alteración de Datos)
 
--   **Amenaza**: Un atacante modifica datos de usuario (ej. email, username, intereses) o el contenido de un JWT.
+-   **Amenaza**: Un atacante modifica datos de usuario (ej. email, username) o el contenido de un JWT.
 -   **Contramedidas**:
     -   **Validación de Entradas**: `express-validator` asegura que los datos enviados para registro o actualización de perfil cumplen con los formatos y restricciones esperados. [cite: /home/luis/Documents/00INTEGRADOR/aura_server/auth-service/src/middlewares/validationMiddleware.js]
     -   **Sanitización de Entradas**: `escape()` y `normalizeEmail()` eliminan caracteres maliciosos o estandarizan datos, previniendo la manipulación a través de inyección. [cite: /home/luis/Documents/00INTEGRADOR/aura_server/auth-service/src/middlewares/validationMiddleware.js]
@@ -186,7 +162,7 @@ Se aplica el framework STRIDE para identificar amenazas y sus contramedidas espe
 -   **Contramedidas**:
     -   **Validación Temprana**: La validación de entradas (`express-validator`) y la verificación de unicidad de email/username se realizan al inicio del flujo de registro, minimizando el procesamiento de peticiones maliciosas. [cite: /home/luis/Documents/00INTEGRADOR/aura_server/auth-service/src/middlewares/validationMiddleware.js, /home/luis/Documents/00INTEGRADOR/aura_server/auth-service/src/controllers/authController.js]
     -   **Eficiencia de Operaciones**: El uso de Prisma para interacciones con la base de datos y operaciones como `upsert` garantiza consultas optimizadas y reduce la carga del servidor.
-    -   **Rate Limiting (Infraestructura)**: Aunque no implementado directamente en el código del Auth Service, se espera que el API Gateway o Nginx a nivel de infraestructura apliquen políticas de rate limiting para proteger contra ataques de fuerza bruta y DDoS.
+    -   **Rate Limiting (Infraestructura)**: Aunque no implementado directamente en el código del Auth Service, se espera que el API Gateway o Nginx a nivel de infraestructura apliquen políticas de *rate limiting* para proteger contra ataques de fuerza bruta y DDoS.
 
 ### Elevation of Privilege (Elevación de Privilegios)
 
