@@ -21,29 +21,37 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🚀 Iniciando la configuración del entorno para Social Service...${NC}\n"
 
 # --- PASO 1: VERIFICAR MYSQL ---
-echo -e "${YELLOW}Paso 1: Verificando instalación y estado de MySQL...${NC}"
+echo -e "${YELLOW}Paso 1: Verificando instalación y estado de MySQL/MariaDB...${NC}"
 
 # Verificar si el comando mysql está disponible
 if ! command -v mysql &> /dev/null; then
-    echo -e "${RED}❌ Error: MySQL no está instalado. Por favor, instala MySQL Server y vuelve a ejecutar el script.${NC}"
-    exit 1
+    echo "MySQL/MariaDB Server no está instalado. Instalando..."
+    sudo apt-get update
+    sudo apt-get install -y mariadb-server mariadb-client
+    if ! command -v mysql &> /dev/null; then
+        echo -e "${RED}❌ Error: No se pudo instalar MySQL/MariaDB Server. Por favor, instálalo manualmente e inténtalo de nuevo.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ MySQL/MariaDB Server instalado correctamente.${NC}"
+else
+    echo -e "${GREEN}✅ MySQL/MariaDB Server ya está instalado.${NC}"
 fi
 
 # Verificar si el servicio MySQL está activo (usando systemctl, el más común)
 if command -v systemctl &> /dev/null; then
-    if ! systemctl is-active --quiet mysql; then
-        echo "El servicio de MySQL no está activo. Se necesita permiso de superusuario para iniciarlo."
-        sudo systemctl start mysql
-        if ! systemctl is-active --quiet mysql; then
-            echo -e "${RED}❌ Error: No se pudo iniciar el servicio de MySQL. Por favor, inícialo manualmente e inténtalo de nuevo.${NC}"
+    if ! systemctl is-active --quiet mariadb; then # Usar 'mariadb' como nombre de servicio
+        echo "El servicio de MySQL/MariaDB no está activo. Se necesita permiso de superusuario para iniciarlo."
+        sudo systemctl start mariadb # Usar 'mariadb' como nombre de servicio
+        if ! systemctl is-active --quiet mariadb; then # Usar 'mariadb' como nombre de servicio
+            echo -e "${RED}❌ Error: No se pudo iniciar el servicio de MySQL/MariaDB. Por favor, inícialo manualmente e inténtalo de nuevo.${NC}"
             exit 1
         fi
-        echo -e "${GREEN}✅ Servicio de MySQL iniciado correctamente.${NC}"
+        echo -e "${GREEN}✅ Servicio de MySQL/MariaDB iniciado correctamente.${NC}"
     else
-        echo -e "${GREEN}✅ El servicio de MySQL ya está en ejecución.${NC}"
+        echo -e "${GREEN}✅ El servicio de MySQL/MariaDB ya está en ejecución.${NC}"
     fi
 else
-    echo -e "${YELLOW}Aviso: No se encontró 'systemctl'. Se omite la verificación del estado del servicio MySQL. Asegúrate de que esté corriendo.${NC}"
+    echo -e "${YELLOW}Aviso: No se encontró 'systemctl'. Se omite la verificación del estado del servicio MySQL/MariaDB. Asegúrate de que esté corriendo.${NC}"
 fi
 echo ""
 
