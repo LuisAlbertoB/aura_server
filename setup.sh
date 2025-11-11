@@ -10,14 +10,22 @@ echo "Iniciando el script de despliegue automatizado para Auth Service y API Gat
 PROJECT_ROOT=$(pwd)
 AUTH_SERVICE_DIR="$PROJECT_ROOT/auth-service"
 API_GATEWAY_DIR="$PROJECT_ROOT/api-gateway"
+SOCIAL_SERVICE_DIR="$PROJECT_ROOT/sotial-content" # Directorio para el nuevo servicio
 
 POSTGRES_USER="aura_auth_user"
 POSTGRES_PASSWORD="aurapassword" # ¡ATENCIÓN: Cambiar por una contraseña segura en producción!
 POSTGRES_DB="aura_auth_db"
 JWT_SECRET="your_very_long_and_complex_jwt_secret_key_for_auth" # ¡ATENCIÓN: Generar y gestionar de forma segura en producción!
 
+# Variables para el servicio social y su base de datos MySQL
+MYSQL_DATABASE="posts_dev_db"
+MYSQL_USER="posts_user"
+MYSQL_PASSWORD="posts123"
+MYSQL_ROOT_PASSWORD="rootpassword" # Contraseña para el usuario root de MySQL en Docker
+
 AUTH_SERVICE_PORT=3001
 API_GATEWAY_PORT=3000
+SOCIAL_SERVICE_PORT=3002 # Puerto para el servicio social
 
 # --- 2. Funciones de Comprobación e Instalación de Requisitos ---
 
@@ -122,6 +130,24 @@ CMD [ "npm", "run", "dev" ]
 EOF
 echo "Dockerfile creado en $API_GATEWAY_DIR/Dockerfile"
 
+# --- 5.1 Crear Dockerfile para el Social Content Service ---
+echo -e "\n--- Creando Dockerfile para sotial-content ---"
+cat <<EOF > "$SOCIAL_SERVICE_DIR/Dockerfile"
+FROM node:20-slim
+WORKDIR /usr/src/app
+COPY package*.json ./
+RUN npm install
+
+# Copiar el resto del código de la aplicación
+COPY . .
+
+# Exponer el puerto que usará la aplicación
+EXPOSE ${SOCIAL_SERVICE_PORT}
+
+# Comando para iniciar la aplicación
+CMD [ "npm", "run", "dev" ]
+EOF
+echo "Dockerfile creado en $SOCIAL_SERVICE_DIR/Dockerfile"
 
 # --- 6. Crear archivo docker-compose.yml ---
 echo -e "\n--- Creando docker-compose.yml ---"
@@ -142,6 +168,23 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
+      timeout: 5s
+      retries: 5
+
+  social_db:
+    image: mysql:8.0
+    container_name: social_db_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - social_db_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${MYSQL_USER}", "-p'${MYSQL_PASSWORD}'"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -168,11 +211,31 @@ services:
       PORT: ${API_GATEWAY_PORT}
       JWT_SECRET: ${JWT_SECRET}
       AUTH_SERVICE_URL: http://auth_microservice:${AUTH_SERVICE_PORT}
+      SOCIAL_SERVICE_URL: http://social_microservice:${SOCIAL_SERVICE_PORT}
     ports:
       - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
     depends_on:
       auth-service:
         condition: service_started
+      social-service:
+        condition: service_started
+    restart: unless-stopped
+
+  social-service:
+    build:
+      context: ./sotial-content
+      dockerfile: Dockerfile
+    container_name: social_microservice
+    environment:
+      DB_HOST: social_db_mysql # Apunta al contenedor de MySQL, no a localhost
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      PORT: ${SOCIAL_SERVICE_PORT}
+    depends_on:
+      social_db:
+        condition: service_healthy # Espera a que la DB esté lista
     restart: unless-stopped
 
 volumes:
@@ -229,8 +292,14 @@ docker compose down
 # Intentar desplegar. Si falla por permisos, el script ya habrá salido antes
 docker compose up --build -d || { echo "Error al desplegar los servicios Docker. Abortando."; exit 1; }
 
-echo -e "\n--- Proceso de despliegue completado ---"
-echo "Los servicios de PostgreSQL, Auth Service y API Gateway han sido levantados."
+echo -e "\n\033[1;32m--- Proceso de despliegue completado ---\033[0m"
+echo "Los siguientes servicios han sido levantados:"
+echo -e "  - \033[0;36mPostgreSQL (para auth-service)\033[0m"
+echo -e "  - \033[0;36mMySQL (para social-service)\033[0m"
+echo -e "  - \033[0;35mAuth Service\033[0m"
+echo -e "  - \033[0;35mSocial Service\033[0m"
+echo -e "  - \033[1;33mAPI Gateway\033[0m"
+echo ""
 echo "API Gateway debería estar accesible en http://localhost:${API_GATEWAY_PORT}"
 echo "Puedes ver los logs con: docker compose logs -f"
 echo "Para detener los servicios: docker compose down"
