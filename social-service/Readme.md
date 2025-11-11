@@ -432,7 +432,7 @@ Authorization: Bearer <jwt-token>
 ## 👤 User Profiles API
 
 ### ✏️ POST /profiles
-**Descripción:** Crear perfil de usuario
+**Descripción:** Crear el perfil para el usuario autenticado. El ID del usuario se obtiene del token JWT.
 
 **Headers:**
 ```
