@@ -59,7 +59,7 @@ echo ""
 echo -e "${YELLOW}Paso 2: Creando la base de datos y el usuario...${NC}"
 echo "Se te pedirá la contraseña de 'root' de MySQL para continuar."
 
-if sudo mysql -u root -p < database-setup.sql; then
+if sudo mysql -u root < database-setup.sql; then
     echo -e "${GREEN}✅ Base de datos 'posts_dev_db' y usuario 'posts_user' creados con éxito.${NC}"
 else
     echo -e "${RED}❌ Error al ejecutar 'database-setup.sql'. Verifica la contraseña de root o si el usuario ya existe con una contraseña diferente.${NC}"

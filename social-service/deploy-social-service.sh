@@ -40,6 +40,12 @@ else
     echo "✅ Node.js ya está instalado."
 fi
 
+# Asegurarse de que npm esté en el PATH para la sesión actual del script
+if ! command_exists npm; then
+    export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+    echo "💡 PATH actualizado para incluir npm."
+fi
+
 # Verificar e instalar MariaDB Server
 if ! command_exists mysql; then
     echo "MariaDB Server no está instalado. Instalando..."
