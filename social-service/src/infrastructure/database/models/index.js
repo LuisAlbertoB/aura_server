@@ -14,6 +14,13 @@ const CommentModel = require('./CommentModel')(sequelize, Sequelize.DataTypes);
 const LikeModel = require('./LikeModel')(sequelize, Sequelize.DataTypes);
 const MediaItemModel = require('./MediaItemModel')(sequelize, Sequelize.DataTypes);
 
+// Nuevos modelos
+const CommunityModel = require('./CommunityModel')(sequelize, Sequelize.DataTypes);
+const UserPreferenceModel = require('./UserPreferenceModel')(sequelize, Sequelize.DataTypes);
+const CompleteProfileModel = require('./CompleteProfileModel')(sequelize, Sequelize.DataTypes);
+const FriendshipModel = require('./FriendshipModel')(sequelize, Sequelize.DataTypes);
+const CommunityMemberModel = require('./CommunityMemberModel')(sequelize, Sequelize.DataTypes);
+
 // Definir asociaciones entre modelos
 
 // UserProfile - Interest (1:N)
@@ -113,6 +120,99 @@ LikeModel.belongsTo(UserProfileModel, {
   as: 'user'
 });
 
+// Definir asociaciones para los nuevos modelos
+
+// UserProfile - UserPreference (1:1)
+UserProfileModel.hasOne(UserPreferenceModel, { 
+  foreignKey: 'user_id', 
+  as: 'preferences',
+  onDelete: 'CASCADE'
+});
+UserPreferenceModel.belongsTo(UserProfileModel, { 
+  foreignKey: 'user_id', 
+  as: 'user'
+});
+
+// UserProfile - CompleteProfile (1:1)
+UserProfileModel.hasOne(CompleteProfileModel, { 
+  foreignKey: 'user_id', 
+  as: 'completeProfile',
+  onDelete: 'CASCADE'
+});
+CompleteProfileModel.belongsTo(UserProfileModel, { 
+  foreignKey: 'user_id', 
+  as: 'user'
+});
+
+// UserProfile - Community (1:N) - Como creador
+UserProfileModel.hasMany(CommunityModel, { 
+  foreignKey: 'creator_id', 
+  as: 'createdCommunities',
+  onDelete: 'CASCADE'
+});
+CommunityModel.belongsTo(UserProfileModel, { 
+  foreignKey: 'creator_id', 
+  as: 'creator'
+});
+
+// Community - CommunityMember (1:N)
+CommunityModel.hasMany(CommunityMemberModel, { 
+  foreignKey: 'community_id', 
+  as: 'memberships',
+  onDelete: 'CASCADE'
+});
+CommunityMemberModel.belongsTo(CommunityModel, { 
+  foreignKey: 'community_id', 
+  as: 'community'
+});
+
+// UserProfile - CommunityMember (1:N)
+UserProfileModel.hasMany(CommunityMemberModel, { 
+  foreignKey: 'user_id', 
+  as: 'communityMemberships',
+  onDelete: 'CASCADE'
+});
+CommunityMemberModel.belongsTo(UserProfileModel, { 
+  foreignKey: 'user_id', 
+  as: 'user'
+});
+
+// UserProfile - Community (N:M) a través de CommunityMember
+UserProfileModel.belongsToMany(CommunityModel, {
+  through: CommunityMemberModel,
+  foreignKey: 'user_id',
+  otherKey: 'community_id',
+  as: 'joinedCommunities'
+});
+CommunityModel.belongsToMany(UserProfileModel, {
+  through: CommunityMemberModel,
+  foreignKey: 'community_id',
+  otherKey: 'user_id',
+  as: 'members'
+});
+
+// UserProfile - Friendship (1:N) - Como solicitante
+UserProfileModel.hasMany(FriendshipModel, { 
+  foreignKey: 'requester_id', 
+  as: 'sentFriendRequests',
+  onDelete: 'CASCADE'
+});
+FriendshipModel.belongsTo(UserProfileModel, { 
+  foreignKey: 'requester_id', 
+  as: 'requester'
+});
+
+// UserProfile - Friendship (1:N) - Como destinatario
+UserProfileModel.hasMany(FriendshipModel, { 
+  foreignKey: 'addressee_id', 
+  as: 'receivedFriendRequests',
+  onDelete: 'CASCADE'
+});
+FriendshipModel.belongsTo(UserProfileModel, { 
+  foreignKey: 'addressee_id', 
+  as: 'addressee'
+});
+
 // Exportar todo
 const db = {
   sequelize,
@@ -122,7 +222,13 @@ const db = {
   PublicationModel,
   CommentModel,
   LikeModel,
-  MediaItemModel
+  MediaItemModel,
+  // Nuevos modelos
+  CommunityModel,
+  UserPreferenceModel,
+  CompleteProfileModel,
+  FriendshipModel,
+  CommunityMemberModel
 };
 
 module.exports = db;

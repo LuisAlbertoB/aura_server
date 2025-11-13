@@ -36,13 +36,14 @@ class PublicationController {
   async getPublications(req, res) {
     try {
       console.log('📖 GetPublications - query params:', req.query);
+      console.log('👤 GetPublications - user from token:', req.user);
 
       // Extraer parámetros de consulta
       const {
         page = 1,
         limit = 10,
         userId,
-        visibility = 'public'
+        visibility = 'all'
       } = req.query;
 
       // Preparar opciones para el caso de uso
@@ -50,8 +51,11 @@ class PublicationController {
         page: parseInt(page),
         limit: parseInt(limit),
         userId,
+        currentUserId: req.user?.id, // ✅ CRÍTICO: Pasar usuario actual para filtros de visibilidad
         visibility
       };
+
+      console.log('📤 Opciones enviadas al UseCase:', options);
 
       // Ejecutar caso de uso
       const result = await this.getPublicationsUseCase.execute(options);

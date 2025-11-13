@@ -203,18 +203,38 @@ class SequelizePublicationRepository extends IPublicationRepository {
       const { page = 1, limit = 10 } = options;
       const offset = (page - 1) * limit;
 
+      console.log('📱 getFeedForUser - Usuario:', userId);
+
       // Obtener amigos del usuario
       const userProfile = await UserProfileModel.findByPk(userId);
       const friendIds = userProfile ? JSON.parse(userProfile.friends || '[]') : [];
       
-      // Incluir publicaciones del usuario y de sus amigos
-      const authorIds = [userId, ...friendIds];
+      console.log('👥 Amigos del usuario:', friendIds);
+
+      // ✅ LÓGICA CORRECTA DE VISIBILIDAD PARA FEED
+      const visibilityConditions = [
+        // 1. Publicaciones públicas de cualquier usuario
+        { visibility: 'public' },
+        
+        // 2. Sus propias publicaciones (todas las visibilidades)
+        { 
+          user_id: userId,
+          visibility: { [Op.in]: ['public', 'friends', 'private'] }
+        }
+      ];
+
+      // 3. Publicaciones de amigos marcadas como 'friends'
+      if (friendIds.length > 0) {
+        visibilityConditions.push({
+          user_id: { [Op.in]: friendIds },
+          visibility: 'friends'
+        });
+      }
 
       const { count, rows } = await PublicationModel.findAndCountAll({
         where: { 
-          user_id: { [Op.in]: authorIds },
           is_active: true,
-          visibility: { [Op.in]: ['public', 'friends'] }
+          [Op.or]: visibilityConditions
         },
         include: this._getIncludeOptions(),
         order: [['created_at', 'DESC']],
@@ -225,11 +245,14 @@ class SequelizePublicationRepository extends IPublicationRepository {
 
       const publications = rows.map(pub => this._mapToAggregate(pub));
       
+      console.log(`✅ Feed generado: ${publications.length} publicaciones para usuario ${userId}`);
+      
       return {
         publications,
         total: count
       };
     } catch (error) {
+      console.error('❌ Error al obtener feed:', error);
       throw new Error(`Error al obtener feed: ${error.message}`);
     }
   }

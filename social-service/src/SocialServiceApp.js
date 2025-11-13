@@ -175,6 +175,18 @@ class SocialServiceApp {
     
     this.app.use('/api/v1/profiles', profileRouter);
 
+    // Importar y usar las nuevas rutas
+    const communityRoutes = require('./presentation/routes/communityRoutes');
+    const preferencesRoutes = require('./presentation/routes/preferencesRoutes');
+    const completeProfileRoutes = require('./presentation/routes/completeProfileRoutes');
+    const friendshipRoutes = require('./presentation/routes/friendshipRoutes');
+
+    // Registrar nuevas rutas
+    this.app.use('/api/v1/communities', communityRoutes);
+    this.app.use('/api/v1/preferences', preferencesRoutes);
+    this.app.use('/api/v1/complete-profile', completeProfileRoutes);
+    this.app.use('/api/v1/friendships', friendshipRoutes);
+
     // Ruta de información de la API
     this.app.get('/api/v1', (req, res) => {
       res.json({
@@ -184,6 +196,10 @@ class SocialServiceApp {
         endpoints: {
           publications: '/api/v1/publications',
           profiles: '/api/v1/profiles',
+          communities: '/api/v1/communities',
+          preferences: '/api/v1/preferences',
+          completeProfile: '/api/v1/complete-profile',
+          friendships: '/api/v1/friendships',
           comments: '/api/v1/comments',
           likes: '/api/v1/likes'
         },

@@ -20,6 +20,10 @@ const CreateUserProfileUseCase = require('../../application/use-cases/userProfil
 // Importar controladores (capa de presentación)
 const PublicationController = require('../../presentation/controllers/PublicationController');
 const UserProfileController = require('../../presentation/controllers/UserProfileController');
+const CommunityController = require('../../presentation/controllers/CommunityController');
+const PreferencesController = require('../../presentation/controllers/PreferencesController');
+const CompleteProfileController = require('../../presentation/controllers/CompleteProfileController');
+const FriendshipController = require('../../presentation/controllers/FriendshipController');
 
 // Importar servicios externos
 const CloudinaryServiceImpl = require('../../infrastructure/services/CloudinaryServiceImpl');
@@ -202,6 +206,19 @@ class Container {
       this.get('unblockUserUseCase')
     );
     this._services.set('userProfileController', userProfileController);
+
+    // Nuevos controladores para funcionalidades sociales
+    const communityController = new CommunityController();
+    this._services.set('communityController', communityController);
+
+    const preferencesController = new PreferencesController();
+    this._services.set('preferencesController', preferencesController);
+
+    const completeProfileController = new CompleteProfileController();
+    this._services.set('completeProfileController', completeProfileController);
+
+    const friendshipController = new FriendshipController();
+    this._services.set('friendshipController', friendshipController);
   }
 
   /**
@@ -210,7 +227,11 @@ class Container {
   getControllers() {
     return {
       publicationController: this.get('publicationController'),
-      userProfileController: this.get('userProfileController')
+      userProfileController: this.get('userProfileController'),
+      communityController: this.get('communityController'),
+      preferencesController: this.get('preferencesController'),
+      completeProfileController: this.get('completeProfileController'),
+      friendshipController: this.get('friendshipController')
     };
   }
 
