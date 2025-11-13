@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const container = require('../../shared/IoC/Container');
 const authMiddleware = require('../../infrastructure/middleware/authMiddleware');
 const validationMiddleware = require('../../infrastructure/middleware/validationMiddleware');
 
-// Inicializar el contenedor para obtener el controlador
-container.initialize();
-const { preferencesController } = container.getControllers();
+// Importar directamente el controlador
+const PreferencesController = require('../controllers/PreferencesController');
+const preferencesController = new PreferencesController();
 
 /**
  * @swagger
@@ -77,7 +76,7 @@ const { preferencesController } = container.getControllers();
  */
 router.get('/', 
   authMiddleware,
-  preferencesController.getPreferences.bind(preferencesController)
+  preferencesController.getUserPreferences.bind(preferencesController)
 );
 
 /**
@@ -167,7 +166,7 @@ router.get('/',
 router.post('/', 
   authMiddleware,
   validationMiddleware.validatePreferences,
-  preferencesController.updatePreferences.bind(preferencesController)
+  preferencesController.updateUserPreferences.bind(preferencesController)
 );
 
 /**
@@ -244,7 +243,7 @@ router.post('/',
 router.put('/', 
   authMiddleware,
   validationMiddleware.validatePreferences,
-  preferencesController.updatePreferences.bind(preferencesController)
+  preferencesController.updateUserPreferences.bind(preferencesController)
 );
 
 /**
@@ -263,7 +262,7 @@ router.put('/',
  */
 router.delete('/', 
   authMiddleware,
-  preferencesController.deletePreferences.bind(preferencesController)
+  preferencesController.deleteUserPreferences.bind(preferencesController)
 );
 
 /**
@@ -295,6 +294,6 @@ router.delete('/',
  *                 - "Historia"
  *                 - "Moda"
  */
-router.get('/categories', preferencesController.getCategories.bind(preferencesController));
+router.get('/categories', preferencesController.getAvailablePreferences.bind(preferencesController));
 
 module.exports = router;

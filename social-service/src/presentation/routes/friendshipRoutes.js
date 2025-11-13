@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const container = require('../../shared/IoC/Container');
 const authMiddleware = require('../../infrastructure/middleware/authMiddleware');
 const validationMiddleware = require('../../infrastructure/middleware/validationMiddleware');
 
-// Inicializar el contenedor para obtener el controlador
-container.initialize();
-const { friendshipController } = container.getControllers();
+// Importar directamente el controlador
+const FriendshipController = require('../controllers/FriendshipController');
+const friendshipController = new FriendshipController();
 
 /**
  * @swagger

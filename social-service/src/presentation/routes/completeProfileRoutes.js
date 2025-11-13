@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const container = require('../../shared/IoC/Container');
 const authMiddleware = require('../../infrastructure/middleware/authMiddleware');
 const validationMiddleware = require('../../infrastructure/middleware/validationMiddleware');
 const upload = require('../../infrastructure/middleware/uploadMiddleware');
 
-// Inicializar el contenedor para obtener el controlador
-container.initialize();
-const { completeProfileController } = container.getControllers();
+// Importar directamente el controlador
+const CompleteProfileController = require('../controllers/CompleteProfileController');
+const completeProfileController = new CompleteProfileController();
 
 /**
  * @swagger

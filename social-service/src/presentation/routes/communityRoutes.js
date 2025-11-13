@@ -1,13 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const container = require('../../shared/IoC/Container');
 const authMiddleware = require('../../infrastructure/middleware/authMiddleware');
 const validationMiddleware = require('../../infrastructure/middleware/validationMiddleware');
 const upload = require('../../infrastructure/middleware/uploadMiddleware');
 
-// Inicializar el contenedor para obtener el controlador
-container.initialize();
-const { communityController } = container.getControllers();
+// Importar directamente el controlador
+const CommunityController = require('../controllers/CommunityController');
+const communityController = new CommunityController();
 
 /**
  * @swagger
@@ -84,7 +83,7 @@ router.post('/',
  *       200:
  *         description: Lista de comunidades
  */
-router.get('/', communityController.getCommunities.bind(communityController));
+router.get('/', communityController.getAllCommunities.bind(communityController));
 
 /**
  * @swagger
