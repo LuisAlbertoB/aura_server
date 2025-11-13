@@ -3,18 +3,17 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const CommunityMember = sequelize.define('CommunityMember', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.CHAR(36),
       primaryKey: true,
       allowNull: false
     },
     community_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       comment: 'ID de la comunidad'
     },
     user_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       comment: 'ID del usuario miembro'
     },
@@ -41,21 +40,6 @@ module.exports = (sequelize) => {
       }
     ]
   });
-
-  // Define associations
-  CommunityMember.associate = (models) => {
-    // Un miembro pertenece a una comunidad
-    CommunityMember.belongsTo(models.Community, {
-      foreignKey: 'community_id',
-      as: 'community'
-    });
-
-    // Un miembro pertenece a un usuario
-    CommunityMember.belongsTo(models.UserProfile, {
-      foreignKey: 'user_id',
-      as: 'user'
-    });
-  };
 
   return CommunityMember;
 };

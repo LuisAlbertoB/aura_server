@@ -3,18 +3,17 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const Friendship = sequelize.define('Friendship', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.CHAR(36),
       primaryKey: true,
       allowNull: false
     },
     requester_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       comment: 'ID del usuario que envía la solicitud'
     },
     addressee_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       comment: 'ID del usuario que recibe la solicitud'
     },
@@ -47,21 +46,6 @@ module.exports = (sequelize) => {
       }
     }
   });
-
-  // Define associations
-  Friendship.associate = (models) => {
-    // Una amistad pertenece a un solicitante
-    Friendship.belongsTo(models.UserProfile, {
-      foreignKey: 'requester_id',
-      as: 'requester'
-    });
-
-    // Una amistad pertenece a un destinatario
-    Friendship.belongsTo(models.UserProfile, {
-      foreignKey: 'addressee_id',
-      as: 'addressee'
-    });
-  };
 
   return Friendship;
 };

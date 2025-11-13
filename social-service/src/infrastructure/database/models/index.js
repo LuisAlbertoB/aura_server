@@ -125,7 +125,7 @@ LikeModel.belongsTo(UserProfileModel, {
 // UserProfile - UserPreference (1:1)
 UserProfileModel.hasOne(UserPreferenceModel, { 
   foreignKey: 'user_id', 
-  as: 'preferences',
+  as: 'userPreferences',
   onDelete: 'CASCADE'
 });
 UserPreferenceModel.belongsTo(UserProfileModel, { 

@@ -448,8 +448,8 @@ const validateCompleteProfileUpdate = [
 const validateFriendshipRequest = [
   body('friend_id')
     .notEmpty()
-    .isInt({ min: 1 })
-    .withMessage('friend_id debe ser un número entero válido'),
+    .isUUID(4)
+    .withMessage('friend_id debe ser un UUID válido'),
   
   handleValidationErrors
 ];
@@ -457,8 +457,8 @@ const validateFriendshipRequest = [
 const validateBlockUserRequest = [
   body('blocked_id')
     .notEmpty()
-    .isInt({ min: 1 })
-    .withMessage('blocked_id debe ser un número entero válido'),
+    .isUUID(4)
+    .withMessage('blocked_id debe ser un UUID válido'),
   
   handleValidationErrors
 ];

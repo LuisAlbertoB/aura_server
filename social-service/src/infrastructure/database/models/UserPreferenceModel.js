@@ -3,13 +3,12 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const UserPreference = sequelize.define('UserPreference', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.CHAR(36),
       primaryKey: true,
       allowNull: false
     },
     user_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       unique: true,
       comment: 'ID del usuario'
@@ -48,15 +47,6 @@ module.exports = (sequelize) => {
       { fields: ['user_id'], unique: true }
     ]
   });
-
-  // Define associations
-  UserPreference.associate = (models) => {
-    // Una preferencia pertenece a un usuario
-    UserPreference.belongsTo(models.UserProfile, {
-      foreignKey: 'user_id',
-      as: 'user'
-    });
-  };
 
   return UserPreference;
 };

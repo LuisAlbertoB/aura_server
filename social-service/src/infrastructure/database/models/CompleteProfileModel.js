@@ -3,13 +3,12 @@ const { DataTypes } = require('sequelize');
 module.exports = (sequelize) => {
   const CompleteProfile = sequelize.define('CompleteProfile', {
     id: {
-      type: DataTypes.UUID,
-      defaultValue: DataTypes.UUIDV4,
+      type: DataTypes.CHAR(36),
       primaryKey: true,
       allowNull: false
     },
     user_id: {
-      type: DataTypes.UUID,
+      type: DataTypes.CHAR(36),
       allowNull: false,
       unique: true,
       comment: 'ID del usuario'
@@ -74,15 +73,6 @@ module.exports = (sequelize) => {
       { fields: ['user_id'], unique: true }
     ]
   });
-
-  // Define associations
-  CompleteProfile.associate = (models) => {
-    // Un perfil completo pertenece a un usuario
-    CompleteProfile.belongsTo(models.UserProfile, {
-      foreignKey: 'user_id',
-      as: 'user'
-    });
-  };
 
   return CompleteProfile;
 };
