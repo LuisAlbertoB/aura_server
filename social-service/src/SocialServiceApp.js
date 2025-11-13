@@ -149,7 +149,7 @@ class SocialServiceApp {
     // GET /api/v1/publications/:id (obtener publicación por ID)
     publicationRouter.get('/:id', optionalAuth, controllers.publicationController.getPublicationById.bind(controllers.publicationController));
     // POST /api/v1/publications (crear nueva publicación)
-    publicationRouter.post('/', authMiddleware, upload.array('files', 5), controllers.publicationController.createPublication.bind(controllers.publicationController));
+    publicationRouter.post('/', authMiddleware, upload.any(), controllers.publicationController.createPublication.bind(controllers.publicationController));
     // POST /api/v1/publications/:id/like (dar like)
     publicationRouter.post('/:id/like', authMiddleware, controllers.publicationController.likePublication.bind(controllers.publicationController));
     // DELETE /api/v1/publications/:id/like (quitar like)

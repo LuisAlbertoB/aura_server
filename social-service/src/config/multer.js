@@ -26,17 +26,22 @@ const storage = multer.diskStorage({
 
 // Filtro de archivos (solo imágenes)
 const fileFilter = (req, file, cb) => {
-    console.log('🔍 Validando archivo:', file.originalname, 'mimetype:', file.mimetype);
+    console.log('🔍 Validando archivo:', {
+        fieldname: file.fieldname,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        encoding: file.encoding
+    });
     
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
 
     if (mimetype && extname) {
-        console.log('✅ Archivo válido');
+        console.log('✅ Archivo válido:', file.fieldname);
         return cb(null, true);
     } else {
-        console.log('❌ Tipo de archivo no permitido');
+        console.log('❌ Tipo de archivo no permitido:', file.mimetype);
         cb(new Error('Solo se permiten imágenes (jpeg, jpg, png, gif, webp)'));
     }
 };

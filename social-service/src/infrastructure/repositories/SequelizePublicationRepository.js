@@ -55,6 +55,21 @@ class SequelizePublicationRepository extends IPublicationRepository {
   }
 
   /**
+   * Crear una nueva publicación (método simple para testing)
+   */
+  async create(publicationData) {
+    try {
+      console.log('🚀 SequelizePublicationRepository.create - Datos recibidos:', publicationData);
+      const newPublication = await PublicationModel.create(publicationData);
+      console.log('✅ Publicación creada en BD:', newPublication.toJSON());
+      return newPublication;
+    } catch (error) {
+      console.error('❌ Error en SequelizePublicationRepository.create:', error);
+      throw new Error(`Error al crear publicación: ${error.message}`);
+    }
+  }
+
+  /**
    * Guardar una publicación (crear o actualizar)
    */
   async save(publication) {
