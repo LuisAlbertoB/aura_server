@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Middlewares
-const { authenticateToken } = require('../../infrastructure/middleware/authMiddleware');
+const { authMiddleware } = require('../../infrastructure/middleware/authMiddleware');
 const { uploadAvatar } = require('../../infrastructure/middleware/uploadMiddleware');
 const { 
   validateMultipartContentType,
@@ -48,7 +48,7 @@ console.log('DEBUG /profiles middlewares:', {
  * 5. userProfileController.createProfile - Crear perfil en BD
  */
 router.post('/profiles', 
-  authenticateToken,
+  authMiddleware,
   validateMultipartContentType,
   uploadAvatar,
   ...validateProfileData,
