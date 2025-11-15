@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 // Middlewares
-const { authMiddleware } = require('../../infrastructure/middleware/authMiddleware');
+const { authenticateToken } = require('../../../temp-fix');
 const { uploadAvatar } = require('../../infrastructure/middleware/uploadMiddleware');
 const { 
   validateMultipartContentType,
@@ -41,14 +41,14 @@ console.log('DEBUG /profiles middlewares:', {
  * Crear perfil de usuario con avatar
  * 
  * Middleware chain:
- * 1. authenticateToken - Validar JWT y extraer user_id
+ * 1. authMiddleware - Validar JWT y extraer user_id
  * 2. validateMultipartContentType - Verificar Content-Type
  * 3. uploadAvatar - Procesar archivo avatar con Multer/Cloudinary
  * 4. validateProfileData - Validar todos los campos del perfil
  * 5. userProfileController.createProfile - Crear perfil en BD
  */
 router.post('/profiles', 
-  authMiddleware,
+  authenticateToken,
   validateMultipartContentType,
   uploadAvatar,
   ...validateProfileData,
