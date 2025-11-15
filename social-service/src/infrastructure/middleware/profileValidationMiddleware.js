@@ -10,16 +10,17 @@
  * - Aplicar trim
  */
 const validateDisplayName = (req, res, next) => {
+  console.log('🔍 Validating displayName. Body:', req.body);
   const { displayName } = req.body;
 
-  if (!displayName || displayName.trim() === '') {
+  if (!displayName || displayName.trim() === '' || displayName === 'null') {
     return res.status(400).json({
       success: false,
       message: 'Errores de validación',
       errors: [
         {
           field: 'displayName',
-          message: 'displayName es requerido'
+          message: 'displayName es requerido y no puede ser "null"'
         }
       ]
     });
@@ -52,10 +53,11 @@ const validateDisplayName = (req, res, next) => {
  * - Aplicar trim
  */
 const validateBio = (req, res, next) => {
+  console.log('🔍 Validating bio. Body:', req.body);
   let { bio } = req.body;
 
-  // Si no se envía o está vacío, asignar null
-  if (!bio || bio.trim() === '') {
+  // Si no se envía, está vacío o es el string "null", asignar null
+  if (!bio || bio.trim() === '' || bio === 'null') {
     req.body.bio = null;
     return next();
   }
@@ -89,10 +91,11 @@ const validateBio = (req, res, next) => {
  * - No puede ser fecha futura
  */
 const validateBirthDate = (req, res, next) => {
+  console.log('🔍 Validating birthDate. Body:', req.body);
   let { birthDate } = req.body;
 
-  // Si no se envía o está vacío, asignar null
-  if (!birthDate || birthDate.trim() === '') {
+  // Si no se envía, está vacío o es "null", asignar null
+  if (!birthDate || birthDate.trim() === '' || birthDate === 'null') {
     req.body.birthDate = null;
     return next();
   }
@@ -175,10 +178,11 @@ const validateBirthDate = (req, res, next) => {
  * - Solo valores: "male", "female", "other", "prefer_not_to_say"
  */
 const validateGender = (req, res, next) => {
+  console.log('🔍 Validating gender. Body:', req.body);
   let { gender } = req.body;
 
-  // Si no se envía o está vacío, asignar null
-  if (!gender || gender.trim() === '') {
+  // Si no se envía, está vacío o es "null", asignar null
+  if (!gender || gender.trim() === '' || gender === 'null') {
     req.body.gender = null;
     return next();
   }
@@ -209,6 +213,7 @@ const validateGender = (req, res, next) => {
  * Campos NO aceptados: website, location, cover, avatarUrl
  */
 const rejectForbiddenFields = (req, res, next) => {
+  console.log('🔍 Rejecting forbidden fields. Body:', req.body);
   const forbiddenFields = ['website', 'location', 'cover', 'avatarUrl', 'avatar_url'];
   const receivedForbidden = [];
 
@@ -236,6 +241,7 @@ const rejectForbiddenFields = (req, res, next) => {
  * Validar que el Content-Type sea multipart/form-data
  */
 const validateMultipartContentType = (req, res, next) => {
+  console.log('🔍 Validating Content-Type. Headers:', req.headers);
   const contentType = req.headers['content-type'];
   
   if (!contentType || !contentType.includes('multipart/form-data')) {

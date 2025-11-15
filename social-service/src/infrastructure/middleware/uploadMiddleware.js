@@ -239,18 +239,10 @@ const uploadAvatar = (req, res, next) => {
       });
     }
 
-    // Validar que se subió un archivo
+    // Si no se sube archivo, continuar
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'La foto de perfil es requerida',
-        errors: [
-          {
-            field: 'avatar',
-            message: 'La foto de perfil es requerida'
-          }
-        ]
-      });
+      console.log('No se subió avatar, continuando...');
+      return next();
     }
 
     console.log('✅ Avatar subido exitosamente:', {
