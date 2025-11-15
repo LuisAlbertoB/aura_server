@@ -35,7 +35,7 @@ class CompleteProfileController {
           message: 'Perfil completo obtenido exitosamente',
           data: {
             user_id: userId,
-            full_name: null,
+            fullName: null,
             age: null,
             profile_picture: null,
             bio: null,
@@ -177,7 +177,7 @@ class CompleteProfileController {
       const completeProfile = await CompleteProfileModel.create({
         id: uuidv4(),
         user_id: userId,
-        full_name: full_name || null,
+        full_name: fullName,
         age: age ? parseInt(age) : null,
         profile_picture: profilePictureUrl,
         bio: bio || null,
