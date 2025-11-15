@@ -293,10 +293,7 @@ async getProfileByUserId(req, res, next) {
     next(error);
   }
 }
-  /**
-   * Remover amigo - NUEVA FUNCIONALIDAD
-   * DELETE /api/v1/users/:userId/friends/:friendId
-   */
+ 
   async removeFriend(req, res) {
     try {
       const { friendId } = req.params;
