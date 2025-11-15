@@ -28,9 +28,9 @@ class UserProfileController {
   }
 
   /**
-   * Crear perfil de usuario con upload de avatar
+   * Crear perfil de usuario 
    * POST /api/v1/profiles
-   * Content-Type: multipart/form-data
+   * Soporta tanto multipart/form-data (con avatar) como application/json (sin avatar)
    */
   async createProfile(req, res) {
     try {
@@ -38,7 +38,8 @@ class UserProfileController {
         body: req.body,
         file: req.file ? { filename: req.file.filename, url: req.file.path } : null,
         avatarUrl: req.avatarUrl,
-        user: req.user?.id
+        user: req.user?.id,
+        contentType: req.headers['content-type']
       });
 
       // Validar autenticación
@@ -51,9 +52,25 @@ class UserProfileController {
 
       const userId = req.user.id;
       
-      // Los datos ya están validados por los middlewares
-      const { displayName, bio, birthDate, gender } = req.body;
-      const avatarUrl = req.avatarUrl; // Viene del middleware uploadAvatar
+      // Extraer datos del body (funciona tanto para JSON como multipart)
+      const { displayName, bio, birthDate, gender, avatar } = req.body;
+      
+      // Validación básica: displayName es requerido
+      if (!displayName || displayName.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Errores de validación',
+          errors: [
+            {
+              field: 'displayName',
+              message: 'displayName es requerido'
+            }
+          ]
+        });
+      }
+
+      // avatarUrl puede venir del middleware uploadAvatar (multipart) o del body (JSON)
+      const avatarUrl = req.avatarUrl || avatar || null;
 
       console.log('📝 CreateProfile - Procesando datos:', {
         userId,
@@ -76,8 +93,8 @@ class UserProfileController {
       // Crear el perfil usando el caso de uso
       const profileData = {
         userId,
-        displayName,
-        bio: bio || null,
+        displayName: displayName.trim(),
+        bio: bio ? bio.trim() : null,
         avatarUrl,
         birthDate: birthDate || null,
         gender: gender || null
@@ -89,8 +106,8 @@ class UserProfileController {
       const responseData = {
         id: result.userProfile?.id || result.id,
         user_id: userId,
-        display_name: displayName,
-        bio: bio || null,
+        display_name: displayName.trim(),
+        bio: bio ? bio.trim() : null,
         avatar_url: avatarUrl,
         birth_date: birthDate || null,
         gender: gender || null,
@@ -239,6 +256,7 @@ class UserProfileController {
   async removeFriend(req, res) {
     try {
       const { friendId } = req.params;
+      const userId = req.user.id;
       
       this._verifyOwnership(req.user.id, userId);
 

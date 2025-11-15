@@ -168,6 +168,10 @@ class SocialServiceApp {
     // Rutas adicionales de User Profiles (mantener compatibilidad)
     const profileRouter = express.Router();
     
+    // POST /api/v1/profiles - Ruta directa que maneja JSON automáticamente
+    // El controller actualizado puede manejar tanto multipart como application/json
+    profileRouter.post('/', authMiddleware, controllers.userProfileController.createProfile.bind(controllers.userProfileController));
+    
     // POST /api/v1/profiles/friends (Agregar un amigo al usuario del token)
     profileRouter.post('/friends', authMiddleware, controllers.userProfileController.addFriend.bind(controllers.userProfileController));
     // POST /api/v1/profiles/blocked-users (Bloquear un usuario desde la cuenta del token)
@@ -176,7 +180,7 @@ class SocialServiceApp {
     // Importar validaciones para fallback JSON
     const { validateProfileData } = require('./infrastructure/middleware/profileValidationMiddleware');
     
-    // POST /api/v1/profiles/json - Fallback para clientes que envíen application/json
+    // POST /api/v1/profiles/json - Fallback alternativo para clientes específicos
     // Aplica validaciones de perfil (displayName, bio, birthDate, gender)
     profileRouter.post('/json', authMiddleware, ...validateProfileData, controllers.userProfileController.createProfile.bind(controllers.userProfileController));
     
