@@ -15,6 +15,7 @@ const UserProfileController = require('../controllers/UserProfileController');
 // Importar caso de uso que funciona
 const CreateUserProfileUseCase = require('../../application/use-cases/userProfile/CreateUserProfileUseCase');
 
+
 // Instanciar controlador con dependencias mínimas
 const userProfileController = new UserProfileController(
   new CreateUserProfileUseCase(), // createUserProfileUseCase 
@@ -25,6 +26,15 @@ const userProfileController = new UserProfileController(
   null, // blockUserUseCase
   null  // unblockUserUseCase
 );
+
+// Debug: log all middlewares and controller for POST /profiles
+console.log('DEBUG /profiles middlewares:', {
+  authenticateToken: typeof authenticateToken,
+  validateMultipartContentType: typeof validateMultipartContentType,
+  uploadAvatar: typeof uploadAvatar,
+  validateProfileData: Array.isArray(validateProfileData) ? validateProfileData.map(fn => typeof fn) : typeof validateProfileData,
+  userProfileController_createProfile: typeof userProfileController.createProfile
+});
 
 /**
  * POST /profiles
