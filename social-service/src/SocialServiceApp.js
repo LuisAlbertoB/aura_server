@@ -125,23 +125,47 @@ class SocialServiceApp {
     publicationRouter.post('/:id/comments', authMiddleware, controllers.publicationController.addComment.bind(controllers.publicationController));
     this.app.use('/api/v1/publications', publicationRouter);
     
-    // Profile Router - CORREGIDO
+    // Profile Router - CORREGIDO CON MULTER
     const profileRouter = express.Router();
     
-    // GET /api/v1/profiles/:userId - NUEVA RUTA PARA OBTENER PERFIL
-    profileRouter.get('/:userId', authMiddleware, controllers.userProfileController.getProfileByUserId.bind(controllers.userProfileController));
+    // GET /api/v1/profiles/:userId - Obtener perfil por ID
+    profileRouter.get('/:userId', 
+      authMiddleware, 
+      controllers.userProfileController.getProfileByUserId.bind(controllers.userProfileController)
+    );
     
-    // POST /api/v1/profiles - Crear perfil
-    profileRouter.post('/', authMiddleware, controllers.userProfileController.createProfile.bind(controllers.userProfileController));
+    // POST /api/v1/profiles - Crear perfil con avatar
+    // ✅ AGREGADO: upload.single('avatar') para manejar el archivo
+    profileRouter.post('/', 
+      authMiddleware,
+      upload.single('avatar'),
+      (req, res, next) => {
+        console.log('📝 Middleware Debug - Body:', req.body);
+        console.log('📝 Middleware Debug - File:', req.file);
+        next();
+      },
+      controllers.userProfileController.createProfile.bind(controllers.userProfileController)
+    );
     
     // POST /api/v1/profiles/friends
-    profileRouter.post('/friends', authMiddleware, controllers.userProfileController.addFriend.bind(controllers.userProfileController));
+    profileRouter.post('/friends', 
+      authMiddleware, 
+      controllers.userProfileController.addFriend.bind(controllers.userProfileController)
+    );
     
     // POST /api/v1/profiles/blocked-users
-    profileRouter.post('/blocked-users', authMiddleware, controllers.userProfileController.blockUser.bind(controllers.userProfileController));
+    profileRouter.post('/blocked-users', 
+      authMiddleware, 
+      controllers.userProfileController.blockUser.bind(controllers.userProfileController)
+    );
     
+    // POST /api/v1/profiles/json - Crear perfil sin archivo (JSON puro)
     const { validateProfileData } = require('./infrastructure/middleware/profileValidationMiddleware');
-    profileRouter.post('/json', authMiddleware, ...validateProfileData, controllers.userProfileController.createProfile.bind(controllers.userProfileController));
+    profileRouter.post('/json', 
+      authMiddleware, 
+      ...validateProfileData, 
+      controllers.userProfileController.createProfile.bind(controllers.userProfileController)
+    );
     
     this.app.use('/api/v1/profiles', profileRouter);
 
