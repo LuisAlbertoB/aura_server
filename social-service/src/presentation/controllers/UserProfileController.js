@@ -7,7 +7,8 @@ class UserProfileController {
     removeFriendUseCase,
     blockUserUseCase,
     unblockUserUseCase,
-    userProfileRepository
+    userProfileRepository,
+      cloudinaryService
   ) {
     this.createUserProfileUseCase = createUserProfileUseCase;
     this.updateProfileUseCase = updateProfileUseCase;
@@ -17,6 +18,7 @@ class UserProfileController {
     this.blockUserUseCase = blockUserUseCase;
     this.unblockUserUseCase = unblockUserUseCase;
     this.userProfileRepository = userProfileRepository;
+     this.cloudinaryService = cloudinaryService;
 
     this.createProfile = this.createProfile.bind(this);
     this.updateProfile = this.updateProfile.bind(this);
@@ -29,95 +31,145 @@ class UserProfileController {
   }
 
   async createProfile(req, res) {
-    try {
-      console.log('📝 CreateProfile - Datos recibidos:', {
-        body: req.body,
-        file: req.file ? { filename: req.file.filename, url: req.file.path } : null,
-        avatarUrl: req.avatarUrl,
-        user: req.user?.id,
-        contentType: req.headers['content-type']
+  try {
+    console.log('📝 CreateProfile - Datos recibidos:', {
+      body: req.body,
+      file: req.file ? { filename: req.file.filename, path: req.file.path, mimetype: req.file.mimetype } : null,
+      avatarUrl: req.avatarUrl,
+      user: req.user?.id,
+      contentType: req.headers['content-type']
+    });
+
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token de acceso requerido'
       });
-
-      if (!req.user?.id) {
-        return res.status(401).json({
-          success: false,
-          message: 'Token de acceso requerido'
-        });
-      }
-
-      const userId = req.user.id;
-      const { displayName, bio, birthDate, gender, avatar } = req.body;
-      
-      if (!displayName || displayName.trim() === '') {
-        return res.status(400).json({
-          success: false,
-          message: 'Errores de validación',
-          errors: [
-            {
-              field: 'displayName',
-              message: 'displayName es requerido'
-            }
-          ]
-        });
-      }
-
-      const avatarUrl = req.avatarUrl || avatar || null;
-
-      console.log('📝 CreateProfile - Procesando datos:', {
-        userId,
-        displayName,
-        bio,
-        birthDate,
-        gender,
-        avatarUrl
-      });
-
-      const existingProfile = await this.findExistingProfile(userId);
-      if (existingProfile) {
-        return res.status(409).json({
-          success: false,
-          message: 'Ya existe un perfil para este usuario'
-        });
-      }
-
-      const profileData = {
-        userId,
-        displayName: displayName.trim(),
-        bio: bio ? bio.trim() : null,
-        avatarUrl,
-        birthDate: birthDate || null,
-        gender: gender || null
-      };
-
-      const result = await this.createUserProfileUseCase.execute(profileData);
-
-      const responseData = {
-        id: result.userProfile?.id || result.id,
-        user_id: userId,
-        display_name: displayName.trim(),
-        bio: bio ? bio.trim() : null,
-        avatar_url: avatarUrl,
-        birth_date: birthDate || null,
-        gender: gender || null,
-        followers_count: 0,
-        following_count: 0,
-        posts_count: 0,
-        is_verified: false,
-        is_active: true,
-        created_at: result.userProfile?.created_at || result.createdAt || new Date().toISOString(),
-        updated_at: result.userProfile?.updated_at || result.updatedAt || new Date().toISOString()
-      };
-
-      res.status(201).json({
-        success: true,
-        message: 'Perfil creado exitosamente',
-        data: responseData
-      });
-
-    } catch (error) {
-      this._handleError(res, error);
     }
+
+    const userId = req.user.id;
+    const { displayName, bio, birthDate, gender, avatar } = req.body;
+    
+    if (!displayName || displayName.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Errores de validación',
+        errors: [
+          {
+            field: 'displayName',
+            message: 'displayName es requerido'
+          }
+        ]
+      });
+    }
+
+    // ✅ PROCESAMIENTO DEL AVATAR
+    let avatarUrl = req.avatarUrl || avatar || null;
+
+    // Si hay archivo subido, procesarlo con Cloudinary
+    if (req.file) {
+      try {
+        console.log('📤 Subiendo avatar a Cloudinary...');
+        
+        // Leer el archivo desde disco
+        const fs = require('fs');
+        const fileBuffer = fs.readFileSync(req.file.path);
+        
+        // Subir a Cloudinary
+        const uploadResult = await this.cloudinaryService.uploadProfileAvatar(
+          fileBuffer,
+          userId
+        );
+        
+        avatarUrl = uploadResult.url;
+        console.log('✅ Avatar subido a Cloudinary:', avatarUrl);
+        
+        // Eliminar archivo temporal del disco
+        fs.unlinkSync(req.file.path);
+        console.log('🗑️ Archivo temporal eliminado');
+        
+      } catch (uploadError) {
+        console.error('❌ Error subiendo avatar a Cloudinary:', uploadError);
+        // Si falla la subida, limpiar el archivo temporal
+        try {
+          const fs = require('fs');
+          if (req.file && req.file.path) {
+            fs.unlinkSync(req.file.path);
+          }
+        } catch (cleanupError) {
+          console.error('❌ Error limpiando archivo temporal:', cleanupError);
+        }
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Error al procesar la imagen del avatar'
+        });
+      }
+    }
+
+    // Validar que se proporcionó avatar
+    if (!avatarUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'El avatar es obligatorio'
+      });
+    }
+
+    console.log('📝 CreateProfile - Procesando datos:', {
+      userId,
+      displayName,
+      bio,
+      birthDate,
+      gender,
+      avatarUrl
+    });
+
+    const existingProfile = await this.findExistingProfile(userId);
+    if (existingProfile) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya existe un perfil para este usuario'
+      });
+    }
+
+    const profileData = {
+      userId,
+      displayName: displayName.trim(),
+      bio: bio ? bio.trim() : null,
+      avatarUrl,
+      birthDate: birthDate || null,
+      gender: gender || null
+    };
+
+    const result = await this.createUserProfileUseCase.execute(profileData);
+
+    const responseData = {
+      id: result.userProfile?.id || result.id,
+      user_id: userId,
+      display_name: displayName.trim(),
+      bio: bio ? bio.trim() : null,
+      avatar_url: avatarUrl,
+      birth_date: birthDate || null,
+      gender: gender || null,
+      followers_count: 0,
+      following_count: 0,
+      posts_count: 0,
+      is_verified: false,
+      is_active: true,
+      created_at: result.userProfile?.created_at || result.createdAt || new Date().toISOString(),
+      updated_at: result.userProfile?.updated_at || result.updatedAt || new Date().toISOString()
+    };
+
+    res.status(201).json({
+      success: true,
+      message: 'Perfil creado exitosamente',
+      data: responseData
+    });
+
+  } catch (error) {
+    this._handleError(res, error);
   }
+}
 
   async findExistingProfile(userId) {
     try {

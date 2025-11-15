@@ -204,7 +204,8 @@ class Container {
       this.get('removeFriendUseCase'),
       this.get('blockUserUseCase'),
       this.get('unblockUserUseCase'),
-        this.get('userProfileRepository') 
+        this.get('userProfileRepository'),
+        this.get('cloudinaryService') 
 
     );
     this._services.set('userProfileController', userProfileController);
