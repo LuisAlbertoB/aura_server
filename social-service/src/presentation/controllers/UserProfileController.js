@@ -1,4 +1,3 @@
-
 class UserProfileController {
   constructor(
     createUserProfileUseCase,
@@ -7,7 +6,8 @@ class UserProfileController {
     addFriendUseCase,
     removeFriendUseCase,
     blockUserUseCase,
-    unblockUserUseCase
+    unblockUserUseCase,
+    userProfileRepository
   ) {
     this.createUserProfileUseCase = createUserProfileUseCase;
     this.updateProfileUseCase = updateProfileUseCase;
@@ -16,8 +16,8 @@ class UserProfileController {
     this.removeFriendUseCase = removeFriendUseCase;
     this.blockUserUseCase = blockUserUseCase;
     this.unblockUserUseCase = unblockUserUseCase;
+    this.userProfileRepository = userProfileRepository;
 
-    // Bind methods
     this.createProfile = this.createProfile.bind(this);
     this.updateProfile = this.updateProfile.bind(this);
     this.updateInterests = this.updateInterests.bind(this);
@@ -25,13 +25,9 @@ class UserProfileController {
     this.removeFriend = this.removeFriend.bind(this);
     this.blockUser = this.blockUser.bind(this);
     this.unblockUser = this.unblockUser.bind(this);
+    this.getProfileByUserId = this.getProfileByUserId.bind(this);
   }
 
-  /**
-   * Crear perfil de usuario 
-   * POST /api/v1/profiles
-   * Soporta tanto multipart/form-data (con avatar) como application/json (sin avatar)
-   */
   async createProfile(req, res) {
     try {
       console.log('📝 CreateProfile - Datos recibidos:', {
@@ -42,7 +38,6 @@ class UserProfileController {
         contentType: req.headers['content-type']
       });
 
-      // Validar autenticación
       if (!req.user?.id) {
         return res.status(401).json({
           success: false,
@@ -51,11 +46,8 @@ class UserProfileController {
       }
 
       const userId = req.user.id;
-      
-      // Extraer datos del body (funciona tanto para JSON como multipart)
       const { displayName, bio, birthDate, gender, avatar } = req.body;
       
-      // Validación básica: displayName es requerido
       if (!displayName || displayName.trim() === '') {
         return res.status(400).json({
           success: false,
@@ -69,7 +61,6 @@ class UserProfileController {
         });
       }
 
-      // avatarUrl puede venir del middleware uploadAvatar (multipart) o del body (JSON)
       const avatarUrl = req.avatarUrl || avatar || null;
 
       console.log('📝 CreateProfile - Procesando datos:', {
@@ -81,7 +72,6 @@ class UserProfileController {
         avatarUrl
       });
 
-      // Verificar que no existe perfil para este usuario
       const existingProfile = await this.findExistingProfile(userId);
       if (existingProfile) {
         return res.status(409).json({
@@ -90,7 +80,6 @@ class UserProfileController {
         });
       }
 
-      // Crear el perfil usando el caso de uso
       const profileData = {
         userId,
         displayName: displayName.trim(),
@@ -102,7 +91,6 @@ class UserProfileController {
 
       const result = await this.createUserProfileUseCase.execute(profileData);
 
-      // Preparar respuesta según especificación
       const responseData = {
         id: result.userProfile?.id || result.id,
         user_id: userId,
@@ -131,12 +119,8 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Verificar si existe un perfil para el usuario
-   */
   async findExistingProfile(userId) {
     try {
-      // Usar directamente el modelo para verificar existencia
       const { UserProfileModel } = require('../../infrastructure/database/models');
       return await UserProfileModel.findOne({ where: { user_id: userId } });
     } catch (error) {
@@ -145,15 +129,71 @@ class UserProfileController {
     }
   }
 
-   /**
-   * Actualizar perfil
-   * PUT /api/v1/profiles
-   */
+  async getProfileByUserId(req, res) {
+    try {
+      const { userId } = req.params;
+      
+      console.log(`📋 GetProfileByUserId - Buscando perfil para: ${userId}`);
+      
+      const profile = await this.userProfileRepository.findByUserId(userId);
+      
+      if (!profile) {
+        console.log(`⚠️ Perfil no encontrado para userId: ${userId}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Perfil no encontrado'
+        });
+      }
+      
+      console.log(`✅ Perfil encontrado:`, {
+        id: profile.id,
+        user_id: profile.user_id,
+        display_name: profile.display_name
+      });
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Perfil obtenido exitosamente',
+        data: {
+          profile: {
+            id: profile.id,
+            userId: profile.user_id,
+            displayName: profile.display_name,
+            bio: profile.bio,
+            avatarUrl: profile.avatar_url,
+            coverUrl: profile.cover_url,
+            location: profile.location,
+            website: profile.website,
+            birthDate: profile.birth_date,
+            gender: profile.gender,
+            privacySettings: profile.privacy_settings,
+            preferences: profile.preferences,
+            followersCount: profile.followers_count,
+            followingCount: profile.following_count,
+            postsCount: profile.posts_count,
+            isVerified: profile.is_verified,
+            isActive: profile.is_active,
+            lastActiveAt: profile.last_active_at,
+            createdAt: profile.created_at,
+            updatedAt: profile.updated_at
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error en getProfileByUserId:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error al obtener perfil',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
   async updateProfile(req, res) {
     try {
       const { username, email, fullName, bio, avatarUrl, location, website, birthDate } = req.body;
       const userId = req.user.id;
-      // Verificar que el usuario puede actualizar este perfil (opcional para testing)
+
       if (req.user?.id && req.user.id !== userId) {
         return res.status(403).json({
           success: false,
@@ -183,10 +223,6 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Actualizar intereses
-   * PUT /api/v1/users/:userId/interests
-   */
   async updateInterests(req, res) {
     try {
       const userId = req.user.id;
@@ -207,10 +243,6 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Agregar amigo - NUEVA FUNCIONALIDAD
-   * POST /api/v1/profiles/:userId/friends
-   */
   async addFriend(req, res) {
     try {
       console.log('👥 AddFriend controller - params:', req.params);
@@ -219,7 +251,6 @@ class UserProfileController {
       const userId = req.user.id;
       const { friendId } = req.body;
       
-      // Validar que se proporcione friendId
       if (!friendId) {
         return res.status(400).json({
           success: false,
@@ -227,7 +258,6 @@ class UserProfileController {
         });
       }
       
-      // Verificar permisos de forma flexible (para testing permitimos sin auth)
       if (req.user?.id && req.user.id !== userId) {
         return res.status(403).json({
           success: false,
@@ -248,52 +278,7 @@ class UserProfileController {
       this._handleError(res, error);
     }
   }
-async getProfileByUserId(req, res, next) {
-  try {
-    const { userId } = req.params;
-    
-    console.log(`📋 GetProfileByUserId - User: ${userId}`);
-    
-    const profile = await this.userProfileRepository.findByUserId(userId);
-    
-    if (!profile) {
-      return res.status(404).json({
-        success: false,
-        message: 'Perfil no encontrado'
-      });
-    }
-    
-    return res.status(200).json({
-      success: true,
-      message: 'Perfil obtenido exitosamente',
-      data: {
-        profile: {
-          userId: profile.user_id,
-          displayName: profile.display_name,
-          bio: profile.bio,
-          avatarUrl: profile.avatar_url,
-          coverUrl: profile.cover_url,
-          location: profile.location,
-          website: profile.website,
-          birthDate: profile.birth_date,
-          gender: profile.gender,
-          followersCount: profile.followers_count,
-          followingCount: profile.following_count,
-          postsCount: profile.posts_count,
-          isVerified: profile.is_verified,
-          isActive: profile.is_active,
-          lastActiveAt: profile.last_active_at,
-          createdAt: profile.created_at,
-          updatedAt: profile.updated_at
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error en getProfileByUserId:', error.message);
-    next(error);
-  }
-}
- 
+
   async removeFriend(req, res) {
     try {
       const { friendId } = req.params;
@@ -314,10 +299,6 @@ async getProfileByUserId(req, res, next) {
     }
   }
 
-  /**
-   * Bloquear usuario - NUEVA FUNCIONALIDAD
-   * POST /api/v1/profiles/:userId/blocked-users
-   */
   async blockUser(req, res) {
     try {
       console.log('🚫 BlockUser controller - params:', req.params);
@@ -326,7 +307,6 @@ async getProfileByUserId(req, res, next) {
       const userId = req.user.id;
       const { userIdToBlock } = req.body;
       
-      // Validar que se proporcione userIdToBlock
       if (!userIdToBlock) {
         return res.status(400).json({
           success: false,
@@ -334,7 +314,6 @@ async getProfileByUserId(req, res, next) {
         });
       }
       
-      // Verificar permisos de forma flexible (para testing permitimos sin auth)
       if (req.user?.id && req.user.id !== userId) {
         return res.status(403).json({
           success: false,
@@ -356,10 +335,6 @@ async getProfileByUserId(req, res, next) {
     }
   }
 
-  /**
-   * Desbloquear usuario - NUEVA FUNCIONALIDAD
-   * DELETE /api/v1/users/:userId/blocked-users/:blockedUserId
-   */
   async unblockUser(req, res) {
     try {
       const { userId, blockedUserId } = req.params;
@@ -379,18 +354,12 @@ async getProfileByUserId(req, res, next) {
     }
   }
 
-  /**
-   * Verificar que el usuario tiene permisos para modificar el recurso
-   */
   _verifyOwnership(requestUserId, resourceUserId) {
     if (requestUserId !== resourceUserId) {
       throw new Error('No tienes permisos para realizar esta acción');
     }
   }
 
-  /**
-   * Manejo centralizado de errores HTTP
-   */
   _handleError(res, error) {
     console.error('Error en UserProfileController:', error.message);
     
