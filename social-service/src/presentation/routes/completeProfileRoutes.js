@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { authMiddleware } = require('../../infrastructure/middleware/authMiddleware');
 const validationMiddleware = require('../../infrastructure/middleware/validationMiddleware');
-const upload = require('../../infrastructure/middleware/uploadMiddleware');
+const { uploadAvatar } = require('../../infrastructure/middleware/uploadMiddleware');
 
 // Importar directamente el controlador
 const CompleteProfileController = require('../controllers/CompleteProfileController');
@@ -85,10 +85,10 @@ router.get('/',
  *               hobbies:
  *                 type: string
  *                 description: Hobbies del usuario separados por comas
- *               profile_picture:
- *                 type: string
- *                 format: binary
- *                 description: Imagen de perfil
+               avatar:
+                 type: string
+                 format: binary
+                 description: Imagen de perfil (avatar)
  *             example:
  *               full_name: "Juan Pérez García"
  *               age: 25
@@ -100,9 +100,9 @@ router.get('/',
  *       400:
  *         description: Datos de entrada inválidos o perfil ya existe
  */
-router.post('/', 
+router.post('/',
   authMiddleware,
-  upload.single('profile_picture'),
+  uploadAvatar,
   validationMiddleware.validateCompleteProfile,
   completeProfileController.createCompleteProfile.bind(completeProfileController)
 );
@@ -137,10 +137,10 @@ router.post('/',
  *               hobbies:
  *                 type: string
  *                 description: Hobbies del usuario separados por comas
- *               profile_picture:
- *                 type: string
- *                 format: binary
- *                 description: Nueva imagen de perfil
+               avatar:
+                 type: string
+                 format: binary
+                 description: Nueva imagen de perfil (avatar)
  *             example:
  *               full_name: "Juan Pérez García"
  *               age: 26
@@ -156,7 +156,7 @@ router.post('/',
  */
 router.put('/', 
   authMiddleware,
-  upload.single('profile_picture'),
+  uploadAvatar,
   validationMiddleware.validateCompleteProfileUpdate,
   completeProfileController.updateCompleteProfile.bind(completeProfileController)
 );
