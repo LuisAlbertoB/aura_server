@@ -21,20 +21,13 @@ class CompleteProfileController {
       console.log('📋 GetCompleteProfile - User:', userId);
 
       const completeProfile = await CompleteProfileModel.findOne({
-        where: { user_id: userId },
-        include: [
-          {
-            model: UserProfileModel,
-            as: 'user',
-            attributes: ['user_id', 'display_name', 'username', 'email', 'avatar_url']
-          }
-        ]
+            attributes: ['user_id', 'display_name', 'avatar_url']
       });
 
       if (!completeProfile) {
         // Retornar perfil vacío si no existe
         const userProfile = await UserProfileModel.findByPk(userId, {
-          attributes: ['user_id', 'display_name', 'username', 'email', 'avatar_url']
+          attributes: ['user_id', 'display_name', 'avatar_url']
         });
 
         return res.status(200).json({
@@ -202,7 +195,7 @@ class CompleteProfileController {
           {
             model: UserProfileModel,
             as: 'user',
-            attributes: ['user_id', 'display_name', 'username', 'email', 'avatar_url']
+            attributes: ['user_id', 'display_name', 'avatar_url']
           }
         ]
       });
@@ -282,7 +275,7 @@ class CompleteProfileController {
             {
               model: UserProfileModel,
               as: 'user',
-              attributes: ['user_id', 'display_name', 'username', 'email', 'avatar_url']
+            attributes: ['user_id', 'display_name', 'avatar_url']
             }
           ]
         });
@@ -314,7 +307,7 @@ class CompleteProfileController {
           {
             model: UserProfileModel,
             as: 'user',
-            attributes: ['user_id', 'display_name', 'username', 'email', 'avatar_url']
+            attributes: ['user_id', 'display_name', 'avatar_url']
           }
         ]
       });
