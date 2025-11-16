@@ -1,3 +1,4 @@
+// infrastructure/database/models/CommunityModel.js
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -24,9 +25,9 @@ module.exports = (sequelize) => {
     },
     category: {
       type: DataTypes.ENUM(
-        'Deportes', 'Arte', 'Musica', 'Lectura', 'Tecnologia', 
-        'Naturaleza', 'Voluntariado', 'Gaming', 'Fotografia', 
-        'Cocina', 'Baile', 'Meditacion'
+        'Deportes', 'Arte', 'Música', 'Lectura', 'Tecnología', 
+        'Naturaleza', 'Voluntariado', 'Gaming', 'Fotografía', 
+        'Cocina', 'Baile', 'Meditación'
       ),
       allowNull: false,
       comment: 'Categoría de la comunidad'
