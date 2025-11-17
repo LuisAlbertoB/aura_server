@@ -21,6 +21,23 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM('pending', 'accepted', 'rejected', 'blocked'),
       defaultValue: 'pending',
       comment: 'Estado de la amistad'
+    },
+    // ✅ AÑADIR ESTOS CAMPOS QUE FALTAN
+    requested_at: {
+      type: DataTypes.DATE,
+      allowNull: false,
+      comment: 'Fecha de envío de la solicitud'
+    },
+    responded_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha de respuesta a la solicitud'
+    },
+    is_active: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: 'Indica si la relación está activa'
     }
   }, {
     tableName: 'friendships',
@@ -31,6 +48,8 @@ module.exports = (sequelize) => {
       { fields: ['requester_id'] },
       { fields: ['addressee_id'] },
       { fields: ['status'] },
+      { fields: ['requested_at'] },
+      { fields: ['is_active'] },
       { 
         fields: ['requester_id', 'addressee_id'], 
         unique: true,

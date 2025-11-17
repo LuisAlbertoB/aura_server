@@ -1,3 +1,4 @@
+// infrastructure/database/models/UserPreferenceModel.js
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
@@ -20,10 +21,11 @@ module.exports = (sequelize) => {
       comment: 'Array de preferencias del usuario',
       validate: {
         isValidPreferences(value) {
+          // ✅ CORREGIDO: Agregadas tildes y eñes correctas
           const validPreferences = [
-            'Deportes', 'Arte', 'Musica', 'Lectura', 'Tecnologia', 
-            'Naturaleza', 'Voluntariado', 'Gaming', 'Fotografia', 
-            'Cocina', 'Baile', 'Meditacion'
+            'Deportes', 'Arte', 'Música', 'Lectura', 'Tecnología', 
+            'Naturaleza', 'Voluntariado', 'Gaming', 'Fotografía', 
+            'Cocina', 'Baile', 'Meditación'
           ];
           
           if (!Array.isArray(value)) {
@@ -32,7 +34,7 @@ module.exports = (sequelize) => {
           
           for (const pref of value) {
             if (!validPreferences.includes(pref)) {
-              throw new Error(`Preferencia inválida: ${pref}`);
+              throw new Error(`Preferencia inválida: ${pref}. Válidas: ${validPreferences.join(', ')}`);
             }
           }
         }

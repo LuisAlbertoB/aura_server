@@ -1,10 +1,10 @@
+// presentation/controllers/CommunityController.js (Puerto 3002)
 const { CommunityModel, CommunityMemberModel, UserProfileModel } = require('../../infrastructure/database/models');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 
 class CommunityController {
   constructor() {
-    // Bind methods para mantener contexto
     this.getAllCommunities = this.getAllCommunities.bind(this);
     this.getCommunityById = this.getCommunityById.bind(this);
     this.createCommunity = this.createCommunity.bind(this);
@@ -17,9 +17,6 @@ class CommunityController {
     this.searchCommunities = this.searchCommunities.bind(this);
   }
 
-  /**
-   * Obtener todas las comunidades con filtros opcionales
-   */
   async getAllCommunities(req, res) {
     try {
       console.log('📋 GetAllCommunities - query params:', req.query);
@@ -34,7 +31,6 @@ class CommunityController {
 
       const offset = (page - 1) * limit;
 
-      // Construir filtros
       let where = { is_active: true };
 
       if (category) {
@@ -87,9 +83,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Obtener comunidad por ID
-   */
   async getCommunityById(req, res) {
     try {
       const { id } = req.params;
@@ -125,7 +118,6 @@ class CommunityController {
         });
       }
 
-      // Verificar si el usuario actual es miembro
       let userMembership = null;
       if (userId) {
         userMembership = await CommunityMemberModel.findOne({
@@ -148,13 +140,10 @@ class CommunityController {
     }
   }
 
-  /**
-   * Crear nueva comunidad
-   */
   async createCommunity(req, res) {
     try {
       console.log('📝 CreateCommunity - req.body:', req.body);
-      console.log('📤 CreateCommunity - req.files:', req.files);
+      console.log('📤 CreateCommunity - req.file:', req.file);
       console.log('👤 CreateCommunity - req.user:', req.user);
 
       const { name, description, category, tags } = req.body;
@@ -168,12 +157,12 @@ class CommunityController {
         });
       }
 
-      // Procesar imagen de la comunidad si se subió
+      // ✅ Procesar imagen de Cloudinary
       let communityImageUrl = null;
-      if (req.files && req.files.length > 0) {
-        const imageFile = req.files[0];
-        communityImageUrl = `http://54.146.237.63:3002/uploads/publications/${imageFile.filename}`;
-        console.log('✅ Imagen de comunidad guardada:', communityImageUrl);
+      if (req.file) {
+        // Cloudinary devuelve la URL en req.file.path
+        communityImageUrl = req.file.path;
+        console.log('✅ Imagen de comunidad guardada en Cloudinary:', communityImageUrl);
       }
 
       // Parsear tags si viene como string
@@ -198,6 +187,8 @@ class CommunityController {
         members_count: 1,
         is_active: true
       };
+
+      console.log('📝 Datos de comunidad a crear:', communityData);
 
       const community = await CommunityModel.create(communityData);
 
@@ -234,9 +225,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Actualizar comunidad (solo creador/admin)
-   */
   async updateCommunity(req, res) {
     try {
       const { id } = req.params;
@@ -245,7 +233,6 @@ class CommunityController {
 
       console.log('✏️ UpdateCommunity - ID:', id, 'User:', userId);
 
-      // Verificar que la comunidad existe
       const community = await CommunityModel.findByPk(id);
       if (!community) {
         return res.status(404).json({
@@ -254,7 +241,6 @@ class CommunityController {
         });
       }
 
-      // Verificar permisos (creador o admin)
       const membership = await CommunityMemberModel.findOne({
         where: { community_id: id, user_id: userId }
       });
@@ -266,14 +252,13 @@ class CommunityController {
         });
       }
 
-      // Procesar nueva imagen si se subió
+      // ✅ Procesar nueva imagen de Cloudinary si se subió
       let communityImageUrl = community.community_image_url;
-      if (req.files && req.files.length > 0) {
-        const imageFile = req.files[0];
-        communityImageUrl = `http://54.146.237.63:3002/uploads/publications/${imageFile.filename}`;
+      if (req.file) {
+        communityImageUrl = req.file.path;
+        console.log('✅ Nueva imagen de comunidad:', communityImageUrl);
       }
 
-      // Parsear tags
       let parsedTags = community.tags;
       if (tags) {
         try {
@@ -283,7 +268,6 @@ class CommunityController {
         }
       }
 
-      // Actualizar comunidad
       await community.update({
         name: name || community.name,
         description: description !== undefined ? description : community.description,
@@ -294,7 +278,6 @@ class CommunityController {
 
       console.log('✅ Comunidad actualizada:', id);
 
-      // Obtener comunidad actualizada
       const updatedCommunity = await CommunityModel.findByPk(id, {
         include: [
           {
@@ -316,9 +299,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Eliminar comunidad (solo creador)
-   */
   async deleteCommunity(req, res) {
     try {
       const { id } = req.params;
@@ -334,7 +314,6 @@ class CommunityController {
         });
       }
 
-      // Solo el creador puede eliminar la comunidad
       if (community.creator_id !== userId) {
         return res.status(403).json({
           success: false,
@@ -342,7 +321,6 @@ class CommunityController {
         });
       }
 
-      // Soft delete - marcar como inactiva
       await community.update({ is_active: false });
 
       res.status(200).json({
@@ -355,9 +333,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Unirse a una comunidad
-   */
   async joinCommunity(req, res) {
     try {
       const { id } = req.params;
@@ -373,7 +348,6 @@ class CommunityController {
         });
       }
 
-      // Verificar si ya es miembro
       const existingMembership = await CommunityMemberModel.findOne({
         where: { community_id: id, user_id: userId }
       });
@@ -385,7 +359,6 @@ class CommunityController {
         });
       }
 
-      // Crear membresía
       await CommunityMemberModel.create({
         id: uuidv4(),
         community_id: id,
@@ -394,7 +367,6 @@ class CommunityController {
         joined_at: new Date()
       });
 
-      // Incrementar contador de miembros
       await community.increment('members_count');
 
       res.status(200).json({
@@ -407,9 +379,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Salir de una comunidad
-   */
   async leaveCommunity(req, res) {
     try {
       const { id } = req.params;
@@ -425,7 +394,6 @@ class CommunityController {
         });
       }
 
-      // El creador no puede salir de su propia comunidad
       if (community.creator_id === userId) {
         return res.status(400).json({
           success: false,
@@ -444,10 +412,7 @@ class CommunityController {
         });
       }
 
-      // Eliminar membresía
       await membership.destroy();
-
-      // Decrementar contador de miembros
       await community.decrement('members_count');
 
       res.status(200).json({
@@ -460,9 +425,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Obtener miembros de una comunidad
-   */
   async getCommunityMembers(req, res) {
     try {
       const { id } = req.params;
@@ -502,9 +464,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Obtener comunidades del usuario
-   */
   async getUserCommunities(req, res) {
     try {
       const userId = req.user.id;
@@ -551,9 +510,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Buscar comunidades
-   */
   async searchCommunities(req, res) {
     try {
       const { q, category, tags } = req.query;
@@ -608,9 +564,6 @@ class CommunityController {
     }
   }
 
-  /**
-   * Manejo centralizado de errores HTTP
-   */
   _handleError(res, error) {
     console.error('Error en CommunityController:', error.message);
     

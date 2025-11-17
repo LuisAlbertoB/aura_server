@@ -4,7 +4,6 @@ const { Op } = require('sequelize');
 
 class FriendshipController {
   constructor() {
-    // Bind methods para mantener contexto
     this.sendFriendRequest = this.sendFriendRequest.bind(this);
     this.acceptFriendRequest = this.acceptFriendRequest.bind(this);
     this.rejectFriendRequest = this.rejectFriendRequest.bind(this);
@@ -17,9 +16,6 @@ class FriendshipController {
     this.getBlockedUsers = this.getBlockedUsers.bind(this);
   }
 
-  /**
-   * Enviar solicitud de amistad
-   */
   async sendFriendRequest(req, res) {
     try {
       const requesterId = req.user.id;
@@ -27,7 +23,6 @@ class FriendshipController {
 
       console.log('📤 SendFriendRequest - From:', requesterId, 'To:', friend_id);
 
-      // Validar campos requeridos
       if (!friend_id) {
         return res.status(400).json({
           success: false,
@@ -35,7 +30,6 @@ class FriendshipController {
         });
       }
 
-      // No se puede enviar solicitud a sí mismo
       if (requesterId === friend_id) {
         return res.status(400).json({
           success: false,
@@ -43,8 +37,10 @@ class FriendshipController {
         });
       }
 
-      // Verificar que el usuario destinatario existe
-      const addresseeUser = await UserProfileModel.findByPk(friend_id);
+      const addresseeUser = await UserProfileModel.findOne({ 
+        where: { user_id: friend_id } 
+      });
+      
       if (!addresseeUser) {
         return res.status(404).json({
           success: false,
@@ -52,23 +48,31 @@ class FriendshipController {
         });
       }
 
-      // Verificar si ya existe una solicitud o amistad
       const existingFriendship = await FriendshipModel.findOne({
         where: {
           [Op.or]: [
-            { requester_id: requesterId, addressee_id: friend_id },
-            { requester_id: friend_id, addressee_id: requesterId }
+            { 
+              requester_id: requesterId, 
+              addressee_id: friend_id 
+            },
+            { 
+              requester_id: friend_id, 
+              addressee_id: requesterId 
+            }
           ]
         }
       });
 
       if (existingFriendship) {
         let message = '';
+        
         switch (existingFriendship.status) {
           case 'pending':
-            message = existingFriendship.requester_id === requesterId 
-              ? 'Ya enviaste una solicitud de amistad a este usuario'
-              : 'Este usuario ya te envió una solicitud de amistad';
+            if (existingFriendship.requester_id === requesterId) {
+              message = 'Ya enviaste una solicitud de amistad a este usuario';
+            } else {
+              message = 'Este usuario ya te envió una solicitud de amistad. Ve a "Recibidas" para aceptarla.';
+            }
             break;
           case 'accepted':
             message = 'Ya son amigos';
@@ -77,28 +81,40 @@ class FriendshipController {
             message = 'No se puede enviar solicitud a este usuario';
             break;
           case 'rejected':
-            message = 'Solicitud previamente rechazada';
+            const daysSinceRejection = Math.floor(
+              (new Date() - new Date(existingFriendship.responded_at)) / (1000 * 60 * 60 * 24)
+            );
+            
+            if (daysSinceRejection < 30) {
+              message = `Solicitud previamente rechazada. Puedes reintentar en ${30 - daysSinceRejection} días.`;
+            } else {
+              await existingFriendship.destroy();
+              console.log('🔄 Solicitud rechazada antigua eliminada');
+              break;
+            }
             break;
         }
         
-        return res.status(400).json({
-          success: false,
-          message,
-          existingStatus: existingFriendship.status
-        });
+        if (message) {
+          return res.status(400).json({
+            success: false,
+            message,
+            existingStatus: existingFriendship.status
+          });
+        }
       }
 
-      // Crear nueva solicitud de amistad
       const friendship = await FriendshipModel.create({
         id: uuidv4(),
         requester_id: requesterId,
         addressee_id: friend_id,
-        status: 'pending'
+        status: 'pending',
+        requested_at: new Date(),
+        is_active: true
       });
 
       console.log('✅ Solicitud de amistad enviada:', friendship.id);
 
-      // Retornar la solicitud sin información de usuarios por ahora
       res.status(201).json({
         success: true,
         message: 'Solicitud de amistad enviada exitosamente',
@@ -107,6 +123,7 @@ class FriendshipController {
           requester_id: friendship.requester_id,
           addressee_id: friendship.addressee_id,
           status: friendship.status,
+          requested_at: friendship.requested_at,
           created_at: friendship.created_at
         }
       });
@@ -116,9 +133,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Aceptar solicitud de amistad
-   */
   async acceptFriendRequest(req, res) {
     try {
       const { friendshipId } = req.params;
@@ -127,6 +141,7 @@ class FriendshipController {
       console.log('✅ AcceptFriendRequest - Friendship:', friendshipId, 'User:', userId);
 
       const friendship = await FriendshipModel.findByPk(friendshipId);
+      
       if (!friendship) {
         return res.status(404).json({
           success: false,
@@ -134,7 +149,6 @@ class FriendshipController {
         });
       }
 
-      // Solo el destinatario puede aceptar la solicitud
       if (friendship.addressee_id !== userId) {
         return res.status(403).json({
           success: false,
@@ -142,7 +156,6 @@ class FriendshipController {
         });
       }
 
-      // Verificar que esté pendiente
       if (friendship.status !== 'pending') {
         return res.status(400).json({
           success: false,
@@ -150,24 +163,25 @@ class FriendshipController {
         });
       }
 
-      // Aceptar la solicitud
-      await friendship.update({ status: 'accepted' });
+      await friendship.update({ 
+        status: 'accepted',
+        responded_at: new Date()
+      });
 
       console.log('✅ Solicitud de amistad aceptada:', friendshipId);
-
-      // Obtener la amistad actualizada
-      const acceptedFriendship = await FriendshipModel.findByPk(friendshipId);
 
       res.status(200).json({
         success: true,
         message: 'Solicitud de amistad aceptada exitosamente',
         data: {
-          id: acceptedFriendship.id,
-          requester_id: acceptedFriendship.requester_id,
-          addressee_id: acceptedFriendship.addressee_id,
-          status: acceptedFriendship.status,
-          created_at: acceptedFriendship.created_at,
-          updated_at: acceptedFriendship.updated_at
+          id: friendship.id,
+          requester_id: friendship.requester_id,
+          addressee_id: friendship.addressee_id,
+          status: friendship.status,
+          requested_at: friendship.requested_at,
+          responded_at: friendship.responded_at,
+          created_at: friendship.created_at,
+          updated_at: friendship.updated_at
         }
       });
 
@@ -176,9 +190,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Rechazar solicitud de amistad
-   */
   async rejectFriendRequest(req, res) {
     try {
       const { friendshipId } = req.params;
@@ -187,6 +198,7 @@ class FriendshipController {
       console.log('❌ RejectFriendRequest - Friendship:', friendshipId, 'User:', userId);
 
       const friendship = await FriendshipModel.findByPk(friendshipId);
+      
       if (!friendship) {
         return res.status(404).json({
           success: false,
@@ -194,7 +206,6 @@ class FriendshipController {
         });
       }
 
-      // Solo el destinatario puede rechazar la solicitud
       if (friendship.addressee_id !== userId) {
         return res.status(403).json({
           success: false,
@@ -202,7 +213,6 @@ class FriendshipController {
         });
       }
 
-      // Verificar que esté pendiente
       if (friendship.status !== 'pending') {
         return res.status(400).json({
           success: false,
@@ -210,8 +220,10 @@ class FriendshipController {
         });
       }
 
-      // Rechazar la solicitud
-      await friendship.update({ status: 'rejected' });
+      await friendship.update({
+        status: 'rejected',
+        responded_at: new Date()
+      });
 
       console.log('✅ Solicitud de amistad rechazada:', friendshipId);
 
@@ -225,17 +237,17 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Obtener solicitudes de amistad pendientes
-   */
   async getFriendRequests(req, res) {
     try {
       const userId = req.user.id;
-      const { type = 'received' } = req.query; // 'received' o 'sent'
+      const { type = 'received' } = req.query;
 
       console.log('📋 GetFriendRequests - User:', userId, 'Type:', type);
 
-      let whereCondition = { status: 'pending' };
+      let whereCondition = { 
+        status: 'pending',
+        is_active: true
+      };
 
       if (type === 'received') {
         whereCondition.addressee_id = userId;
@@ -250,21 +262,10 @@ class FriendshipController {
 
       const friendRequests = await FriendshipModel.findAll({
         where: whereCondition,
-        // include comentado temporalmente hasta que se agreguen las columnas faltantes a user_profiles
-        // include: [
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'requester',
-        //     attributes: ['user_id', 'display_name', 'username', 'avatar_url']
-        //   },
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'addressee',
-        //     attributes: ['user_id', 'display_name', 'username', 'avatar_url']
-        //   }
-        // ],
-        order: [['created_at', 'DESC']]
+        order: [['requested_at', 'DESC']]
       });
+
+      console.log(`📊 Encontradas ${friendRequests.length} solicitudes ${type}`);
 
       res.status(200).json({
         success: true,
@@ -277,9 +278,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Obtener lista de amigos
-   */
   async getFriends(req, res) {
     try {
       const userId = req.user.id;
@@ -291,30 +289,17 @@ class FriendshipController {
       const { count, rows } = await FriendshipModel.findAndCountAll({
         where: {
           status: 'accepted',
+          is_active: true,
           [Op.or]: [
             { requester_id: userId },
             { addressee_id: userId }
           ]
         },
-        // include comentado temporalmente hasta que se agreguen las columnas faltantes a user_profiles
-        // include: [
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'requester',
-        //     attributes: ['user_id', 'display_name', 'username', 'avatar_url']
-        //   },
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'addressee',
-        //     attributes: ['user_id', 'display_name', 'username', 'avatar_url']
-        //   }
-        // ],
-        order: [['created_at', 'DESC']],
+        order: [['responded_at', 'DESC']],
         limit: parseInt(limit),
         offset: parseInt(offset)
       });
 
-      // Mapear para obtener la información básica de la amistad (sin datos de usuarios por ahora)
       const friends = rows.map(friendship => {
         const friend_id = friendship.requester_id === userId 
           ? friendship.addressee_id 
@@ -323,9 +308,13 @@ class FriendshipController {
         return {
           friendship_id: friendship.id,
           friend_id: friend_id,
-          since: friendship.created_at
+          status: friendship.status,
+          since: friendship.responded_at || friendship.created_at,
+          requested_at: friendship.requested_at
         };
       });
+
+      console.log(`👥 Encontrados ${count} amigos`);
 
       res.status(200).json({
         success: true,
@@ -344,9 +333,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Verificar estado de amistad con un usuario
-   */
   async getFriendshipStatus(req, res) {
     try {
       const userId = req.user.id;
@@ -357,7 +343,6 @@ class FriendshipController {
       if (userId === targetUserId) {
         return res.status(200).json({
           success: true,
-          message: 'Estado de amistad obtenido',
           data: {
             status: 'self',
             message: 'Es tu propio perfil'
@@ -372,25 +357,11 @@ class FriendshipController {
             { requester_id: targetUserId, addressee_id: userId }
           ]
         }
-        // include comentado temporalmente hasta que se agreguen las columnas faltantes a user_profiles
-        // include: [
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'requester',
-        //     attributes: ['user_id', 'display_name', 'username']
-        //   },
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'addressee',
-        //     attributes: ['user_id', 'display_name', 'username']
-        //   }
-        // ]
       });
 
       if (!friendship) {
         return res.status(200).json({
           success: true,
-          message: 'Estado de amistad obtenido',
           data: {
             status: 'none',
             message: 'Sin relación de amistad'
@@ -401,7 +372,6 @@ class FriendshipController {
       let statusMessage = '';
       let canAccept = false;
       let canReject = false;
-      let canSendRequest = false;
 
       switch (friendship.status) {
         case 'pending':
@@ -418,9 +388,6 @@ class FriendshipController {
           break;
         case 'rejected':
           statusMessage = 'Solicitud rechazada';
-          if (friendship.requester_id !== userId) {
-            canSendRequest = true;
-          }
           break;
         case 'blocked':
           statusMessage = 'Usuario bloqueado';
@@ -429,7 +396,6 @@ class FriendshipController {
 
       res.status(200).json({
         success: true,
-        message: 'Estado de amistad obtenido exitosamente',
         data: {
           friendship_id: friendship.id,
           status: friendship.status,
@@ -437,8 +403,8 @@ class FriendshipController {
           is_requester: friendship.requester_id === userId,
           can_accept: canAccept,
           can_reject: canReject,
-          can_send_request: canSendRequest,
-          created_at: friendship.created_at
+          requested_at: friendship.requested_at,
+          responded_at: friendship.responded_at
         }
       });
 
@@ -447,9 +413,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Eliminar amigo / Cancelar solicitud
-   */
   async removeFriend(req, res) {
     try {
       const { friendshipId } = req.params;
@@ -458,6 +421,7 @@ class FriendshipController {
       console.log('🗑️ RemoveFriend - Friendship:', friendshipId, 'User:', userId);
 
       const friendship = await FriendshipModel.findByPk(friendshipId);
+      
       if (!friendship) {
         return res.status(404).json({
           success: false,
@@ -465,7 +429,6 @@ class FriendshipController {
         });
       }
 
-      // Verificar que el usuario sea parte de la amistad
       if (friendship.requester_id !== userId && friendship.addressee_id !== userId) {
         return res.status(403).json({
           success: false,
@@ -473,7 +436,6 @@ class FriendshipController {
         });
       }
 
-      // Eliminar la amistad/solicitud
       await friendship.destroy();
 
       console.log('✅ Amistad eliminada:', friendshipId);
@@ -488,9 +450,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Bloquear usuario
-   */
   async blockUser(req, res) {
     try {
       const userId = req.user.id;
@@ -505,7 +464,6 @@ class FriendshipController {
         });
       }
 
-      // Buscar amistad existente
       let friendship = await FriendshipModel.findOne({
         where: {
           [Op.or]: [
@@ -516,19 +474,19 @@ class FriendshipController {
       });
 
       if (friendship) {
-        // Actualizar estado a bloqueado
         await friendship.update({ 
           status: 'blocked',
           requester_id: userId,
           addressee_id: blocked_id
         });
       } else {
-        // Crear nuevo registro de bloqueo
         friendship = await FriendshipModel.create({
           id: uuidv4(),
           requester_id: userId,
           addressee_id: blocked_id,
-          status: 'blocked'
+          status: 'blocked',
+          requested_at: new Date(),
+          is_active: true
         });
       }
 
@@ -544,9 +502,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Desbloquear usuario
-   */
   async unblockUser(req, res) {
     try {
       const userId = req.user.id;
@@ -569,7 +524,6 @@ class FriendshipController {
         });
       }
 
-      // Eliminar el bloqueo
       await friendship.destroy();
 
       console.log('✅ Usuario desbloqueado:', targetUserId);
@@ -584,9 +538,6 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Obtener usuarios bloqueados
-   */
   async getBlockedUsers(req, res) {
     try {
       const userId = req.user.id;
@@ -598,14 +549,6 @@ class FriendshipController {
           requester_id: userId,
           status: 'blocked'
         },
-        // include comentado temporalmente hasta que se agreguen las columnas faltantes a user_profiles
-        // include: [
-        //   {
-        //     model: UserProfileModel,
-        //     as: 'addressee',
-        //     attributes: ['user_id', 'display_name', 'username', 'avatar_url']
-        //   }
-        // ],
         order: [['created_at', 'DESC']]
       });
 
@@ -620,11 +563,9 @@ class FriendshipController {
     }
   }
 
-  /**
-   * Manejo centralizado de errores HTTP
-   */
   _handleError(res, error) {
-    console.error('Error en FriendshipController:', error.message);
+    console.error('❌ Error en FriendshipController:', error.message);
+    console.error('Stack:', error.stack);
     
     if (error.name === 'SequelizeValidationError') {
       return res.status(400).json({
