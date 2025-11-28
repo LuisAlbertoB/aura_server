@@ -260,6 +260,209 @@ const validateFriendId = [
   handleValidationErrors
 ];
 
+// Validaciones para Communities
+const validateCommunityCreation = [
+  body('name')
+    .notEmpty()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('El nombre de la comunidad debe tener entre 3 y 100 caracteres')
+    .trim(),
+  
+  body('description')
+    .notEmpty()
+    .isLength({ min: 10, max: 500 })
+    .withMessage('La descripción debe tener entre 10 y 500 caracteres')
+    .trim(),
+  
+  body('category')
+    .notEmpty()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('La categoría es requerida y no puede exceder 50 caracteres')
+    .trim(),
+  
+  body('tags')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Los tags no pueden exceder 500 caracteres'),
+  
+  body('privacy')
+    .optional()
+    .isIn(['public', 'private'])
+    .withMessage('La privacidad debe ser public o private'),
+  
+  handleValidationErrors
+];
+
+const validateCommunityUpdate = [
+  body('name')
+    .optional()
+    .isLength({ min: 3, max: 100 })
+    .withMessage('El nombre de la comunidad debe tener entre 3 y 100 caracteres')
+    .trim(),
+  
+  body('description')
+    .optional()
+    .isLength({ min: 10, max: 500 })
+    .withMessage('La descripción debe tener entre 10 y 500 caracteres')
+    .trim(),
+  
+  body('category')
+    .optional()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('La categoría no puede exceder 50 caracteres')
+    .trim(),
+  
+  body('tags')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('Los tags no pueden exceder 500 caracteres'),
+  
+  body('privacy')
+    .optional()
+    .isIn(['public', 'private'])
+    .withMessage('La privacidad debe ser public o private'),
+  
+  handleValidationErrors
+];
+
+// Validaciones para Preferences
+const validatePreferences = [
+  body('Deportes')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Deportes debe ser un número entre 1 y 10'),
+  
+  body('Arte')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Arte debe ser un número entre 1 y 10'),
+  
+  body('Música')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Música debe ser un número entre 1 y 10'),
+  
+  body('Tecnología')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Tecnología debe ser un número entre 1 y 10'),
+  
+  body('Ciencia')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Ciencia debe ser un número entre 1 y 10'),
+  
+  body('Viajes')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Viajes debe ser un número entre 1 y 10'),
+  
+  body('Cocina')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Cocina debe ser un número entre 1 y 10'),
+  
+  body('Lectura')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Lectura debe ser un número entre 1 y 10'),
+  
+  body('Entretenimiento')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Entretenimiento debe ser un número entre 1 y 10'),
+  
+  body('Naturaleza')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Naturaleza debe ser un número entre 1 y 10'),
+  
+  body('Historia')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Historia debe ser un número entre 1 y 10'),
+  
+  body('Moda')
+    .optional()
+    .isInt({ min: 1, max: 10 })
+    .withMessage('Moda debe ser un número entre 1 y 10'),
+  
+  handleValidationErrors
+];
+
+// Validaciones para Complete Profile
+const validateCompleteProfile = [
+  body('full_name')
+    .notEmpty()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('El nombre completo debe tener entre 2 y 100 caracteres')
+    .trim(),
+  
+  body('age')
+    .isInt({ min: 13, max: 120 })
+    .withMessage('La edad debe ser un número entre 13 y 120'),
+  
+  body('bio')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('La biografía no puede exceder 500 caracteres')
+    .trim(),
+  
+  body('hobbies')
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage('Los hobbies no pueden exceder 255 caracteres')
+    .trim(),
+  
+  handleValidationErrors
+];
+
+const validateCompleteProfileUpdate = [
+  body('full_name')
+    .optional()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('El nombre completo debe tener entre 2 y 100 caracteres')
+    .trim(),
+  
+  body('age')
+    .optional()
+    .isInt({ min: 13, max: 120 })
+    .withMessage('La edad debe ser un número entre 13 y 120'),
+  
+  body('bio')
+    .optional()
+    .isLength({ max: 500 })
+    .withMessage('La biografía no puede exceder 500 caracteres')
+    .trim(),
+  
+  body('hobbies')
+    .optional()
+    .isLength({ max: 255 })
+    .withMessage('Los hobbies no pueden exceder 255 caracteres')
+    .trim(),
+  
+  handleValidationErrors
+];
+
+// Validaciones para Friendships
+const validateFriendshipRequest = [
+  body('friend_id')
+    .notEmpty()
+    .isUUID(4)
+    .withMessage('friend_id debe ser un UUID válido'),
+  
+  handleValidationErrors
+];
+
+const validateBlockUserRequest = [
+  body('blocked_id')
+    .notEmpty()
+    .isUUID(4)
+    .withMessage('blocked_id debe ser un UUID válido'),
+  
+  handleValidationErrors
+];
+
 module.exports = {
   validateCreatePublication,
   validateUpdatePublication,
@@ -276,5 +479,13 @@ module.exports = {
   validateCommentId,
   validateUserId,
   validateFriendId,
+  // New validations for additional features
+  validateCommunityCreation,
+  validateCommunityUpdate,
+  validatePreferences,
+  validateCompleteProfile,
+  validateCompleteProfileUpdate,
+  validateFriendshipRequest,
+  validateBlockUserRequest,
   handleValidationErrors
 };

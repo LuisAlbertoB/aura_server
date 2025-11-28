@@ -1,3 +1,5 @@
+// ✅ AÑADE ESTO AL PRINCIPIO DEL ARCHIVO
+const fs = require('fs');
 
 class UserProfileController {
   constructor(
@@ -7,7 +9,9 @@ class UserProfileController {
     addFriendUseCase,
     removeFriendUseCase,
     blockUserUseCase,
-    unblockUserUseCase
+    unblockUserUseCase,
+    userProfileRepository,
+      cloudinaryService
   ) {
     this.createUserProfileUseCase = createUserProfileUseCase;
     this.updateProfileUseCase = updateProfileUseCase;
@@ -16,8 +20,9 @@ class UserProfileController {
     this.removeFriendUseCase = removeFriendUseCase;
     this.blockUserUseCase = blockUserUseCase;
     this.unblockUserUseCase = unblockUserUseCase;
+    this.userProfileRepository = userProfileRepository;
+     this.cloudinaryService = cloudinaryService;
 
-    // Bind methods
     this.createProfile = this.createProfile.bind(this);
     this.updateProfile = this.updateProfile.bind(this);
     this.updateInterests = this.updateInterests.bind(this);
@@ -25,86 +30,226 @@ class UserProfileController {
     this.removeFriend = this.removeFriend.bind(this);
     this.blockUser = this.blockUser.bind(this);
     this.unblockUser = this.unblockUser.bind(this);
+    this.getProfileByUserId = this.getProfileByUserId.bind(this);
   }
 
-  /**
-   * Crear perfil de usuario
-   * POST /api/v1/profiles
-   */
   async createProfile(req, res) {
-    try {
-      console.log('📝 CreateProfile - req.body completo:', req.body);
-      
-      const { 
-        userId, 
-        displayName, 
-        username, 
-        email, 
-        fullName, 
-        bio, 
-        interests, 
-        avatarUrl, 
-        location, 
-        website, 
-        birthDate,
-        gender
-      } = req.body;
-      
-      
-      // Usar displayName en prioridad, luego fullName, luego username
-      const finalDisplayName = displayName || fullName || username || email || 'Usuario Anónimo';
+  try {
+    console.log('📝 CreateProfile - Datos recibidos:', {
+      body: req.body,
+      file: req.file ? { filename: req.file.filename, path: req.file.path, mimetype: req.file.mimetype } : null,
+      avatarUrl: req.avatarUrl,
+      user: req.user?.id,
+      contentType: req.headers['content-type']
+    });
 
-      console.log('📝 CreateProfile - Datos procesados:', {
-        finalUserId,
-        finalDisplayName,
-        bio,
-        avatarUrl,
-        location,
-        website,
-        birthDate
+    if (!req.user?.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token de acceso requerido'
       });
+    }
 
-      if (!req.user?.id) {
-        return res.status(400).json({
+    const userId = req.user.id;
+    const { displayName, bio, birthDate, gender, avatar } = req.body;
+    
+    if (!displayName || displayName.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Errores de validación',
+        errors: [
+          {
+            field: 'displayName',
+            message: 'displayName es requerido'
+          }
+        ]
+      });
+    }
+
+    // ✅ PROCESAMIENTO DEL AVATAR
+    let avatarUrl = req.avatarUrl || avatar || null;
+
+    // Si hay archivo subido, procesarlo con Cloudinary
+    if (req.file) {
+      try {
+        console.log('📤 Subiendo avatar a Cloudinary...');
+        
+        // ✅ SOLUCIÓN - Pasar el objeto file completo
+        const uploadResult = await this.cloudinaryService.upload(req.file, {
+          folder: 'profiles/avatars',
+          public_id: `profile-${userId}-${Date.now()}`,
+          transformation: [
+            { width: 200, height: 200, crop: 'fill' },
+            { quality: 'auto' },
+            { format: 'jpg' }
+          ]
+        });
+        
+        avatarUrl = uploadResult.secureUrl;
+        console.log('✅ Avatar subido a Cloudinary:', avatarUrl);
+        
+        // ✅ CORREGIDO - fs ya está importado al principio
+        fs.unlinkSync(req.file.path);
+        console.log('🗑️ Archivo temporal eliminado');
+        
+      } catch (uploadError) {
+        console.error('❌ Error subiendo avatar a Cloudinary:', uploadError);
+        // Si falla la subida, limpiar el archivo temporal
+        try {
+          // ✅ CORREGIDO - Ya no necesitas require aquí
+          if (req.file && req.file.path) {
+            fs.unlinkSync(req.file.path);
+          }
+        } catch (cleanupError) {
+          console.error('❌ Error limpiando archivo temporal:', cleanupError);
+        }
+        
+        return res.status(500).json({
           success: false,
-          message: 'userId es requerido para crear perfil'
+          message: 'Error al procesar la imagen del avatar'
         });
       }
+    }
 
-      const result = await this.createUserProfileUseCase.execute({ // El userId se obtiene del token
-        userId: finalUserId,  // Cambié de 'id' a 'userId'
-        displayName: finalDisplayName,
-        email,
-        username,
-        fullName,
-        bio,
-        interests,
-        avatarUrl,
-        location,
-        website,
-        birthDate
+    // Validar que se proporcionó avatar
+    if (!avatarUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'El avatar es obligatorio'
       });
+    }
 
-      res.status(201).json({
-        success: true,
-        message: 'Perfil creado exitosamente',
-        data: result.userProfile || result
+    console.log('📝 CreateProfile - Procesando datos:', {
+      userId,
+      displayName,
+      bio,
+      birthDate,
+      gender,
+      avatarUrl
+    });
+
+    const existingProfile = await this.findExistingProfile(userId);
+    if (existingProfile) {
+      return res.status(409).json({
+        success: false,
+        message: 'Ya existe un perfil para este usuario'
       });
+    }
 
+    const profileData = {
+      userId,
+      displayName: displayName.trim(),
+      bio: bio ? bio.trim() : null,
+      avatarUrl,
+      birthDate: birthDate || null,
+      gender: gender || null
+    };
+
+    const result = await this.createUserProfileUseCase.execute(profileData);
+
+    const responseData = {
+      id: result.userProfile?.id || result.id,
+      user_id: userId,
+      display_name: displayName.trim(),
+      bio: bio ? bio.trim() : null,
+      avatar_url: avatarUrl,
+      birth_date: birthDate || null,
+      gender: gender || null,
+      followers_count: 0,
+      following_count: 0,
+      posts_count: 0,
+      is_verified: false,
+      is_active: true,
+      created_at: result.userProfile?.created_at || result.createdAt || new Date().toISOString(),
+      updated_at: result.userProfile?.updated_at || result.updatedAt || new Date().toISOString()
+    };
+
+    res.status(201).json({
+      success: true,
+      message: 'Perfil creado exitosamente',
+      data: responseData
+    });
+
+  } catch (error) {
+    this._handleError(res, error);
+  }
+}
+
+  async findExistingProfile(userId) {
+    try {
+      const { UserProfileModel } = require('../../infrastructure/database/models');
+      return await UserProfileModel.findOne({ where: { user_id: userId } });
     } catch (error) {
-      this._handleError(res, error);
+      console.error('Error verificando perfil existente:', error);
+      return null;
     }
   }
 
-   /**
-   * Actualizar perfil
-   * PUT /api/v1/profiles
-   */
+  async getProfileByUserId(req, res) {
+    try {
+      const { userId } = req.params;
+      
+      console.log(`📋 GetProfileByUserId - Buscando perfil para: ${userId}`);
+      
+      const profile = await this.userProfileRepository.findByUserId(userId);
+      
+      if (!profile) {
+        console.log(`⚠️ Perfil no encontrado para userId: ${userId}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Perfil no encontrado'
+        });
+      }
+      
+      console.log(`✅ Perfil encontrado:`, {
+        id: profile.id,
+        user_id: profile.user_id,
+        display_name: profile.display_name
+      });
+      
+      return res.status(200).json({
+        success: true,
+        message: 'Perfil obtenido exitosamente',
+        data: {
+          profile: {
+            id: profile.id,
+            userId: profile.user_id,
+            displayName: profile.display_name,
+            bio: profile.bio,
+            avatarUrl: profile.avatar_url,
+            coverUrl: profile.cover_url,
+            location: profile.location,
+            website: profile.website,
+            birthDate: profile.birth_date,
+            gender: profile.gender,
+            privacySettings: profile.privacy_settings,
+            preferences: profile.preferences,
+            followersCount: profile.followers_count,
+            followingCount: profile.following_count,
+            postsCount: profile.posts_count,
+            isVerified: profile.is_verified,
+            isActive: profile.is_active,
+            lastActiveAt: profile.last_active_at,
+            createdAt: profile.created_at,
+            updatedAt: profile.updated_at
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error en getProfileByUserId:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error al obtener perfil',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
+
   async updateProfile(req, res) {
     try {
       const { username, email, fullName, bio, avatarUrl, location, website, birthDate } = req.body;
       const userId = req.user.id;
-      // Verificar que el usuario puede actualizar este perfil (opcional para testing)
+
       if (req.user?.id && req.user.id !== userId) {
         return res.status(403).json({
           success: false,
@@ -134,10 +279,6 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Actualizar intereses
-   * PUT /api/v1/users/:userId/interests
-   */
   async updateInterests(req, res) {
     try {
       const userId = req.user.id;
@@ -158,10 +299,6 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Agregar amigo - NUEVA FUNCIONALIDAD
-   * POST /api/v1/profiles/:userId/friends
-   */
   async addFriend(req, res) {
     try {
       console.log('👥 AddFriend controller - params:', req.params);
@@ -170,7 +307,6 @@ class UserProfileController {
       const userId = req.user.id;
       const { friendId } = req.body;
       
-      // Validar que se proporcione friendId
       if (!friendId) {
         return res.status(400).json({
           success: false,
@@ -178,7 +314,6 @@ class UserProfileController {
         });
       }
       
-      // Verificar permisos de forma flexible (para testing permitimos sin auth)
       if (req.user?.id && req.user.id !== userId) {
         return res.status(403).json({
           success: false,
@@ -200,13 +335,10 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Remover amigo - NUEVA FUNCIONALIDAD
-   * DELETE /api/v1/users/:userId/friends/:friendId
-   */
   async removeFriend(req, res) {
     try {
       const { friendId } = req.params;
+      const userId = req.user.id;
       
       this._verifyOwnership(req.user.id, userId);
 
@@ -223,10 +355,6 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Bloquear usuario - NUEVA FUNCIONALIDAD
-   * POST /api/v1/profiles/:userId/blocked-users
-   */
   async blockUser(req, res) {
     try {
       console.log('🚫 BlockUser controller - params:', req.params);
@@ -235,7 +363,6 @@ class UserProfileController {
       const userId = req.user.id;
       const { userIdToBlock } = req.body;
       
-      // Validar que se proporcione userIdToBlock
       if (!userIdToBlock) {
         return res.status(400).json({
           success: false,
@@ -243,7 +370,6 @@ class UserProfileController {
         });
       }
       
-      // Verificar permisos de forma flexible (para testing permitimos sin auth)
       if (req.user?.id && req.user.id !== userId) {
         return res.status(403).json({
           success: false,
@@ -265,10 +391,6 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Desbloquear usuario - NUEVA FUNCIONALIDAD
-   * DELETE /api/v1/users/:userId/blocked-users/:blockedUserId
-   */
   async unblockUser(req, res) {
     try {
       const { userId, blockedUserId } = req.params;
@@ -288,18 +410,12 @@ class UserProfileController {
     }
   }
 
-  /**
-   * Verificar que el usuario tiene permisos para modificar el recurso
-   */
   _verifyOwnership(requestUserId, resourceUserId) {
     if (requestUserId !== resourceUserId) {
       throw new Error('No tienes permisos para realizar esta acción');
     }
   }
 
-  /**
-   * Manejo centralizado de errores HTTP
-   */
   _handleError(res, error) {
     console.error('Error en UserProfileController:', error.message);
     

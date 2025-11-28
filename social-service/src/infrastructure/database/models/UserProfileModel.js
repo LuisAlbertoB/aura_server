@@ -15,17 +15,17 @@ module.exports = (sequelize, DataTypes) => {
     display_name: {
       type: DataTypes.STRING(100),
       allowNull: false,
-      comment: 'Nombre a mostrar'
+      comment: 'Nombre a mostrar - REQUERIDO'
     },
     bio: {
-      type: DataTypes.TEXT,
+      type: DataTypes.STRING(500),
       allowNull: true,
-      comment: 'Biografía del usuario'
+      comment: 'Biografía del usuario - máximo 500 caracteres'
     },
     avatar_url: {
-      type: DataTypes.TEXT,
-      allowNull: true,
-      comment: 'URL del avatar'
+      type: DataTypes.STRING(500),
+      allowNull: false,
+      comment: 'URL del avatar - REQUERIDO, generado por Cloudinary'
     },
     cover_url: {
       type: DataTypes.TEXT,

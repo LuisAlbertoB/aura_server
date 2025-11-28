@@ -2,12 +2,12 @@
 const { v4: uuidv4 } = require('uuid');
 
 class CreateUserProfileUseCase {
-  constructor(userProfileRepository) {
+  constructor(userProfileRepository = null) {
     this.userProfileRepository = userProfileRepository;
   }
 
   /**
-   * Crear un nuevo perfil de usuario
+   * Crear un nuevo perfil de usuario con soporte para upload
    */
   async execute(userData) {
     try {
@@ -15,17 +15,11 @@ class CreateUserProfileUseCase {
 
       const { 
         userId, 
-        email,
-        username,
-        fullName,
         displayName,
         bio,
         avatarUrl,
-        location,
-        website,
         birthDate,
-        gender,
-        interests = []
+        gender
       } = userData;
 
       // 1. Validaciones básicas
@@ -33,65 +27,71 @@ class CreateUserProfileUseCase {
         throw new Error('userId es requerido');
       }
 
-      if (!displayName && !fullName && !username) {
-        throw new Error('Se requiere al menos displayName, fullName o username');
+      if (!displayName) {
+        throw new Error('displayName es requerido');
       }
 
-      // 2. Usar displayName en prioridad: fullName > username > email
-      const finalDisplayName = displayName || fullName || username || email || `Usuario_${userId}`;
+      // avatarUrl is optional for JSON fallback (can be null)
+      const finalAvatarUrl = avatarUrl || null;
+
+      // 2. Importar modelo directamente si no hay repository
+      const { UserProfileModel } = require('../../../infrastructure/database/models');
 
       // 3. Verificar que el usuario no existe
-      const existingProfile = await this.userProfileRepository.findByUserId(userId);
+      const existingProfile = this.userProfileRepository 
+        ? await this.userProfileRepository.findByUserId(userId)
+        : await UserProfileModel.findOne({ where: { user_id: userId } });
+
       if (existingProfile) {
-        throw new Error('El perfil de usuario ya existe');
+        throw new Error('Ya existe un perfil para este usuario');
       }
 
       // 4. Preparar datos para crear perfil
       const profileData = {
         id: uuidv4(),
         user_id: userId,
-        display_name: finalDisplayName,
+        display_name: displayName,
         bio: bio || null,
-        avatar_url: avatarUrl || null,
-        location: location || null,
-        website: website || null,
+  avatar_url: finalAvatarUrl,
         birth_date: birthDate || null,
         gender: gender || null,
-        privacy_settings: {
-          profile_visibility: 'public',
-          show_email: false,
-          show_birth_date: !!birthDate,
-          allow_friend_requests: true
-        },
-        preferences: {
-          interests: interests || [],
-          language: 'es',
-          theme: 'light'
-        },
+        // Campos con valores por defecto según especificación
+        followers_count: 0,
+        following_count: 0,
+        posts_count: 0,
         is_verified: false,
-        is_active: true
+        is_active: true,
+        // Campos opcionales no requeridos para la especificación actual
+        location: null,
+        website: null,
+        privacy_settings: null,
+        preferences: null
       };
 
       // 5. Crear perfil
-      const savedProfile = await this.userProfileRepository.create(profileData);
+      const savedProfile = this.userProfileRepository 
+        ? await this.userProfileRepository.create(profileData)
+        : await UserProfileModel.create(profileData);
 
       console.log('✅ Perfil creado exitosamente:', savedProfile.id);
 
-      // 6. Retornar resultado
+      // 6. Retornar resultado según especificación
       return {
-        success: true,
-        profile: {
+        userProfile: {
           id: savedProfile.id,
-          userId: savedProfile.user_id,
-          displayName: savedProfile.display_name,
+          user_id: savedProfile.user_id,
+          display_name: savedProfile.display_name,
           bio: savedProfile.bio,
-          avatarUrl: savedProfile.avatar_url,
-          location: savedProfile.location,
-          website: savedProfile.website,
-          birthDate: savedProfile.birth_date,
-          isVerified: savedProfile.is_verified,
-          isActive: savedProfile.is_active,
-          createdAt: savedProfile.created_at
+          avatar_url: savedProfile.avatar_url,
+          birth_date: savedProfile.birth_date,
+          gender: savedProfile.gender,
+          followers_count: savedProfile.followers_count,
+          following_count: savedProfile.following_count,
+          posts_count: savedProfile.posts_count,
+          is_verified: savedProfile.is_verified,
+          is_active: savedProfile.is_active,
+          created_at: savedProfile.created_at,
+          updated_at: savedProfile.updated_at
         }
       };
 

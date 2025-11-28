@@ -1,0 +1,1194 @@
+# Análisis Profundo del Backend - Aura Server
+
+## 📋 Resumen Ejecutivo
+
+El backend de Aura está compuesto por **4 microservicios** independientes que implementan una arquitectura distribuida para una plataforma de reconexión humana. La aplicación utiliza dos sistemas de bases de datos: **PostgreSQL** para servicios críticos de autenticación y notificaciones, y **MySQL** para servicios de contenido social y mensajería.
+
+---
+
+## 🏗️ Arquitectura General
+
+### Microservicios Identificados
+
+1. **auth-service-aura** - Servicio de Autenticación y Gestión de Usuarios
+2. **social-service** - Servicio de Red Social (Publicaciones, Perfiles, Comunidades)
+3. **aura-messaging-service** - Servicio de Mensajería en Tiempo Real
+4. **notifications-service-aura** - Servicio de Notificaciones Push
+
+### Stack Tecnológico por Microservicio
+
+| Microservicio | Base de Datos | ORM/Query Builder | Tecnologías Clave |
+|--------------|---------------|-------------------|-------------------|
+| auth-service-aura | PostgreSQL | Prisma | bcryptjs, JWT, Firebase Admin |
+| social-service | MySQL | Sequelize | Cloudinary, Express |
+| aura-messaging-service | MySQL | Sequelize | Socket.io, JWT |
+| notifications-service-aura | PostgreSQL | Prisma | Firebase Cloud Messaging |
+
+---
+
+## 1️⃣ AUTH-SERVICE-AURA
+
+### 📊 Capa de Persistencia
+
+**Base de Datos:** PostgreSQL  
+**Ubicación:** Variable de entorno `DATABASE_URL`  
+**ORM:** Prisma
+
+#### Modelos de Datos
+
+##### **1. Users (tabla: `users`)**
+- **user_id**: UUID (PK) - Identificador único del usuario
+- **username**: VARCHAR(100) UNIQUE - Nombre de usuario
+- **email**: VARCHAR(100) UNIQUE - Correo electrónico
+- **password_hash**: VARCHAR(255) - Contraseña encriptada con bcrypt
+- **id_role**: INT FK → roles.id_role - Rol del usuario (default: 2)
+- **created_at**: TIMESTAMP - Fecha de creación
+
+**Relaciones:**
+- Pertenece a un Role (n:1)
+- Tiene múltiples DeviceTokens (1:n)
+- Tiene múltiples PasswordResets (1:n)
+
+##### **2. Roles (tabla: `roles`)**
+- **id_role**: INT SERIAL (PK)
+- **role_name**: VARCHAR(50) UNIQUE - Nombre del rol
+- **created_at**: TIMESTAMP
+
+**Roles del Sistema:**
+- Admin (id_role: 1)
+- User (id_role: 2 - por defecto)
+
+##### **3. DeviceTokens (tabla: `device_tokens`)**
+- **id**: INT SERIAL (PK)
+- **user_id**: UUID FK → users.user_id (CASCADE DELETE)
+- **token**: VARCHAR(255) - Token FCM de Firebase
+- **created_at**: TIMESTAMP
+
+**Índices únicos:** (user_id, token) - Previene tokens duplicados
+
+##### **4. PasswordResets (tabla: `password_resets`)**
+- **id**: INT SERIAL (PK)
+- **user_id**: UUID FK → users.user_id (CASCADE DELETE)
+- **token**: VARCHAR(64) UNIQUE - Token de recuperación
+- **expires_at**: TIMESTAMP - Fecha de expiración
+- **created_at**: TIMESTAMP
+- **used**: BOOLEAN DEFAULT false - Indica si fue usado
+
+### 🔧 Lógica de Negocio
+
+#### Operaciones Principales
+
+1. **Registro de Usuarios ([register](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#7-86))**
+   - Valida datos de entrada (username, email, password)
+   - Encripta contraseña con bcrypt (10 salt rounds)
+   - Asigna rol "user" por defecto (id_role=2)
+   - Crea usuario en PostgreSQL
+   - Genera token JWT con expiración de 7d
+
+2. **Autenticación ([login](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#87-146))**
+   - Valida credenciales (email/username + password)
+   - Compara hash con bcrypt
+   - Genera token JWT
+   - Almacena deviceToken (FCM) para notificaciones push
+   - Retorna datos del usuario + token
+
+3. **Recuperación de Contraseña ([recoverPassword](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#148-204))**
+   - Valida existencia del email
+   - Genera token criptográfico aleatorio (32 bytes)
+   - Almacena token con expiración (24h)
+   - **Pendiente:** Integración con servicio de email
+
+4. **Reseteo de Contraseña ([resetPassword](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#205-243))**
+   - Valida token no expirado y no usado
+   - Encripta nueva contraseña
+   - Marca token como usado
+   - Actualiza password_hash del usuario
+
+5. **Gestión de Sesión**
+   - [getProfile](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#244-260): Obtiene perfil del usuario autenticado
+   - [logout](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#319-334): Elimina deviceToken del usuario
+   - [deleteAccountByUser](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#335-347): Elimina cuenta y datos relacionados (CASCADE)
+
+6. **Consultas Públicas**
+   - [getAllUsersPublic](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#271-318): Retorna lista de usuarios con paginación
+   - [getAllUsers](file:///home/luis/Documents/00INTEGRADOR/aura_server/auth-service-aura/src/controllers/authController.js#261-270): Lista completa (solo admin)
+
+### 💡 Lógica de Aplicación
+
+- **Middleware de autenticación**: Valida JWT en headers
+- **Middleware de roles**: Verifica permisos (admin/user)
+- **Validación de entrada**: Express-validator en todas las rutas
+- **Seguridad**: 
+  - Helmet para headers HTTP
+  - CORS configurado
+  - Rate limiting (pendiente)
+- **Integración Firebase**: Almacena tokens FCM para push notifications
+
+### 📍 Ubicación de Datos
+
+```
+PostgreSQL Database (DATABASE_URL)
+├── users
+├── roles  
+├── device_tokens
+└── password_resets
+```
+
+---
+
+## 2️⃣ SOCIAL-SERVICE
+
+### 📊 Capa de Persistencia
+
+**Base de Datos:** MySQL (`posts_dev_db`)  
+**Usuario:** posts_user / posts123  
+**ORM:** Sequelize
+
+#### Modelos de Datos
+
+##### **1. UserProfiles (tabla: `user_profiles`)**
+Perfil social completo del usuario.
+
+**Campos Principales:**
+- **id**: CHAR(36) PK - UUID del perfil
+- **user_id**: CHAR(36) UNIQUE - Referencia al auth-service
+- **display_name**: VARCHAR(100) NOT NULL - Nombre público
+- **bio**: VARCHAR(500) - Biografía
+- **avatar_url**: VARCHAR(500) NOT NULL - Avatar (Cloudinary)
+- **cover_url**: TEXT - Imagen de portada
+- **location**: VARCHAR(100) - Ubicación
+- **website**: VARCHAR(255) - Sitio web
+- **birth_date**: DATE - Fecha de nacimiento
+- **gender**: ENUM('male', 'female', 'other', 'prefer_not_to_say')
+
+**Métricas Sociales:**
+- **followers_count**: INT DEFAULT 0
+- **following_count**: INT DEFAULT 0
+- **posts_count**: INT DEFAULT 0
+
+**Estado:**
+- **is_verified**: BOOLEAN DEFAULT false - Cuenta verificada
+- **is_active**: BOOLEAN DEFAULT true
+- **last_active_at**: TIMESTAMP
+- **privacy_settings**: JSON - Configuración de privacidad
+- **preferences**: JSON - Preferencias del usuario
+
+**Timestamps:** created_at, updated_at
+
+##### **2. Publications (tabla: `posts`)**
+Publicaciones de usuarios en la red social.
+
+- **id**: CHAR(36) PK
+- **user_id**: CHAR(36) FK
+- **content**: TEXT - Contenido textual
+- **type**: ENUM('text', 'image', 'video', 'text_image', 'text_video')
+- **visibility**: ENUM('public', 'private', 'friends') DEFAULT 'public'
+- **location**: VARCHAR(255) - Geolocalización opcional
+- **tags**: JSON - Etiquetas de la publicación
+- **metadata**: JSON - Metadatos adicionales
+- **likes_count**: INT DEFAULT 0
+- **comments_count**: INT DEFAULT 0
+- **shares_count**: INT DEFAULT 0
+- **is_active**: BOOLEAN DEFAULT true
+- **created_at**, **updated_at**
+
+##### **3. MediaItems (tabla: `media`)**
+Archivos multimedia asociados a publicaciones.
+
+- **id**: CHAR(36) PK
+- **post_id**: CHAR(36) FK → posts.id
+- **type**: ENUM('image', 'video', 'audio', 'document')
+- **url**: TEXT NOT NULL - URL de Cloudinary
+- **public_id**: VARCHAR(500) - ID público de Cloudinary
+- **original_name**: VARCHAR(500)
+- **mime_type**: VARCHAR(100)
+- **size**: BIGINT - Tamaño en bytes
+- **width**, **height**: INT - Dimensiones (imágenes/videos)
+- **duration**: FLOAT - Duración en segundos (videos/audios)
+- **format**: VARCHAR(20) - jpg, png, mp4, etc.
+- **alt_text**: TEXT - Accesibilidad
+- **metadata**: JSON
+- **order_position**: INT DEFAULT 1 - Orden en el post
+- **is_primary**: BOOLEAN DEFAULT false
+- **created_at**, **updated_at**
+
+##### **4. Comments (tabla: `comments`)**
+Sistema de comentarios con respuestas anidadas.
+
+- **id**: CHAR(36) PK
+- **post_id**: CHAR(36) FK → posts.id
+- **user_id**: CHAR(36) - Usuario que comenta
+- **parent_id**: CHAR(36) NULLABLE - Comentario padre (respuestas)
+- **content**: TEXT NOT NULL
+- **likes_count**: INT DEFAULT 0
+- **replies_count**: INT DEFAULT 0
+- **level**: INT DEFAULT 1 - Nivel de anidación
+- **is_edited**: BOOLEAN DEFAULT false
+- **is_active**: BOOLEAN DEFAULT true
+- **edited_at**: TIMESTAMP NULLABLE
+- **created_at**, **updated_at**
+
+##### **5. Likes (tabla: `likes`)**
+Sistema de reacciones polimórficas.
+
+- **id**: CHAR(36) PK
+- **user_id**: CHAR(36) - Usuario que reaccionó
+- **likeable_type**: ENUM('post', 'comment') - Tipo de entidad
+- **likeable_id**: CHAR(36) - ID de la entidad
+- **type**: ENUM('like', 'dislike', 'love', 'angry', 'sad', 'wow') DEFAULT 'like'
+- **created_at** (sin updated_at)
+
+**Índice único:** (user_id, likeable_id, likeable_type) - Una reacción por usuario/entidad
+
+##### **6. Communities (tabla: `communities`)**
+Comunidades temáticas para agrupación de usuarios.
+
+- **id**: CHAR(36) PK
+- **creator_id**: CHAR(36) - Usuario creador
+- **name**: VARCHAR(100) NOT NULL
+- **description**: TEXT
+- **category**: ENUM('Deportes', 'Arte', 'Música', 'Lectura', 'Tecnología', 'Naturaleza', 'Voluntariado', 'Gaming', 'Fotografía', 'Cocina', 'Baile', 'Meditación')
+- **tags**: JSON DEFAULT []
+- **community_image_url**: VARCHAR(500)
+- **members_count**: INT DEFAULT 1
+- **is_active**: BOOLEAN DEFAULT true
+- **created_at**, **updated_at**
+
+##### **7. CommunityMembers (tabla: `community_members`)**
+Relación usuarios-comunidades con roles.
+
+- **id**: CHAR(36) PK
+- **community_id**: CHAR(36) FK → communities.id
+- **user_id**: CHAR(36) - Miembro
+- **role**: ENUM('creator', 'admin', 'moderator', 'member') DEFAULT 'member'
+- **joined_at**: TIMESTAMP
+
+**Índice único:** (community_id, user_id)
+
+##### **8. Friendships (tabla: `friendships`)**
+Relaciones de amistad entre usuarios.
+
+- **id**: CHAR(36) PK
+- **requester_id**: CHAR(36) - Usuario que envía solicitud
+- **addressee_id**: CHAR(36) - Usuario que recibe solicitud
+- **status**: ENUM('pending', 'accepted', 'rejected', 'blocked') DEFAULT 'pending'
+- **requested_at**: TIMESTAMP NOT NULL
+- **responded_at**: TIMESTAMP NULLABLE
+- **is_active**: BOOLEAN DEFAULT true
+- **created_at**, **updated_at**
+
+**Validación:** No permite amistad consigo mismo  
+**Índice único:** (requester_id, addressee_id)
+
+##### **9. Interests (tabla: `interests`)**
+Intereses individuales de usuarios.
+
+- **id**: UUID PK
+- **user_id**: UUID - Usuario propietario
+- **name**: VARCHAR(100) NOT NULL
+- **category**: VARCHAR(50) - Categoría del interés
+- **created_at** (sin updated_at)
+
+**Índice único:** (user_id, name)
+
+##### **10. UserPreferences (tabla: `user_preferences`)**
+Preferencias categorizadas de usuarios.
+
+- **id**: CHAR(36) PK
+- **user_id**: CHAR(36) UNIQUE
+- **preferences**: JSON NOT NULL DEFAULT [] - Array de preferencias
+- **created_at**, **updated_at**
+
+**Valores válidos:** ['Deportes', 'Arte', 'Música', 'Lectura', 'Tecnología', 'Naturaleza', 'Voluntariado', 'Gaming', 'Fotografía', 'Cocina', 'Baile', 'Meditación']
+
+##### **11. CompleteProfiles (tabla: `complete_profiles`)**
+Información complementaria del perfil.
+
+- **id**: CHAR(36) PK
+- **user_id**: CHAR(36) UNIQUE
+- **full_name**: VARCHAR(100)
+- **age**: INT (validación: 1-120)
+- **profile_picture**: VARCHAR(500)
+- **bio**: TEXT (max 500 caracteres)
+- **hobbies**: JSON DEFAULT []
+- **location**: VARCHAR(100)
+- **website**: VARCHAR(200) - Validado como URL
+- **phone**: VARCHAR(20)
+- **created_at**, **updated_at**
+
+### 🔧 Lógica de Negocio
+
+#### Use Cases Identificados
+
+**Gestión de Perfiles:**
+1. **Creación de perfil**: Crea perfil social al registrarse desde auth-service
+2. **Actualización de perfil**: Modifica datos públicos (display_name, bio, avatar, cover)
+3. **Subida de imágenes**: Integración con Cloudinary para avatares y covers
+4. **Consulta de perfiles**: Búsqueda y visualización de perfiles públicos
+5. **Actualización de métricas**: Incremento/decremento de followers_count, posts_count
+
+**Gestión de Publicaciones:**
+1. **Crear publicación**: Texto, imagen, video o mixto con validación de tipo
+2. **Subir multimedia**: Upload a Cloudinary con metadata completa
+3. **Editar publicación**: Actualización de contenido (marca is_edited)
+4. **Eliminar publicación**: Soft delete (is_active = false) o hard delete en cascada
+5. **Filtrar por visibilidad**: public, private, friends
+6. **Feed personalizado**: Publicaciones de amigos y comunidades seguidas
+7. **Incremento de métricas**: likes_count, comments_count, shares_count
+
+**Sistema de Interacciones:**
+1. **Añadir reacción**: Like, love, wow, sad, angry a posts/comments
+2. **Comentar**: Creación de comentarios con soporte de respuestas anidadas (hasta nivel N)
+3. **Responder comentarios**: parent_id apunta al comentario padre
+4. **Editar comentario**: Actualiza content y marca is_edited + edited_at
+5. **Eliminar comentario**: Soft delete preservando estructura de conversación
+
+**Gestión de Amistades:**
+1. **Enviar solicitud**: Crea friendship con status='pending'
+2. **Aceptar solicitud**: Cambia status a 'accepted', registra responded_at
+3. **Rechazar solicitud**: status='rejected'
+4. **Bloquear usuario**: status='blocked'
+5. **Listar amigos**: Filtra por status='accepted' y is_active=true
+6. **Sugerencias de amistad**: Basado en amigos en común y preferencias
+
+**Gestión de Comunidades:**
+1. **Crear comunidad**: Usuario se convierte en creator automáticamente
+2. **Unirse a comunidad**: Añade CommunityMember con role='member'
+3. **Gestión de roles**: creator/admin puede asignar moderadores
+4. **Listar comunidades**: Filtrado por categoría, búsqueda por nombre/tags
+5. **Feed de comunidad**: Publicaciones de miembros (pendiente implementación)
+6. **Actualizar members_count**: Incremento/decremento automático
+
+**Preferencias e Intereses:**
+1. **Guardar preferencias**: Array de categorías predefinidas
+2. **Añadir intereses**: Intereses personalizados por usuario
+3. **Matching de usuarios**: Algoritmo de compatibilidad basado en preferencias compartidas
+
+### 💡 Lógica de Aplicación
+
+**Arquitectura Clean Architecture:**
+- **Domain:** Entidades de negocio puras
+- **Application:** Use cases específicos
+- **Infrastructure:** Implementación Sequelize, Cloudinary
+- **Presentation:** Controladores Express y rutas
+
+**Integraciones Externas:**
+- **Cloudinary**: Upload de imágenes/videos con transformaciones
+- **Validación:** Express-validator en todas las rutas
+- **Paginación:** Implementada en listados de posts, comments, communities
+
+**Comunicación entre Servicios:**
+- user_id actúa como foreign key lógica hacia auth-service
+- No hay relaciones físicas entre bases de datos
+- Validación de user_id vía JWT o consulta al auth-service
+
+### 📍 Ubicación de Datos
+
+```
+MySQL Database: posts_dev_db
+├── user_profiles (perfiles sociales)
+├── complete_profiles (info adicional)
+├── user_preferences (preferencias categorizadas)
+├── interests (intereses personalizados)
+├── posts (publicaciones)
+├── media (archivos multimedia)
+├── comments (comentarios con anidación)
+├── likes (reacciones polimórficas)
+├── communities (comunidades temáticas)
+├── community_members (membresías)
+└── friendships (relaciones de amistad)
+
+Cloudinary (Storage externo):
+├── Avatares de usuarios
+├── Covers de perfiles
+├── Imágenes de publicaciones
+├── Videos de publicaciones
+└── Imágenes de comunidades
+```
+
+---
+
+## 3️⃣ AURA-MESSAGING-SERVICE
+
+### 📊 Capa de Persistencia
+
+**Base de Datos:** MySQL  
+**ORM:** Sequelize  
+**Tecnologías:** Socket.io para WebSocket real-time
+
+#### Modelos de Datos
+
+##### **1. Messages (tabla: `messages`)**
+Mensajes individuales en conversaciones o grupos.
+
+- **id**: UUID PK
+- **conversation_id**: UUID NULLABLE FK → conversations.id
+- **group_id**: UUID NULLABLE FK → chat_groups.id
+- **sender_profile_id**: UUID NOT NULL - Perfil del remitente
+- **content**: TEXT NOT NULL - Contenido del mensaje
+- **message_type**: ENUM('text', 'image', 'video', 'audio', 'file', 'system') DEFAULT 'text'
+- **status**: ENUM('sent', 'delivered', 'read', 'failed') DEFAULT 'sent'
+- **media_url**: VARCHAR(500) NULLABLE - URL de archivo multimedia
+- **reply_to_id**: UUID NULLABLE - ID del mensaje al que responde
+- **is_edited**: BOOLEAN DEFAULT false
+- **is_deleted**: BOOLEAN DEFAULT false
+- **metadata**: JSON DEFAULT {}
+- **created_at**, **updated_at**
+
+**Regla:** conversation_id XOR group_id (uno debe ser NULL, el otro NOT NULL)
+
+##### **2. Conversations (tabla: `conversations`)**
+Conversaciones 1:1 entre dos usuarios.
+
+- **id**: UUID PK
+- **participant1_profile_id**: UUID NOT NULL - Primer participante
+- **participant2_profile_id**: UUID NOT NULL - Segundo participante
+- **last_message_id**: UUID NULLABLE - Último mensaje enviado
+- **last_message_at**: TIMESTAMP NULLABLE
+- **participant1_status**: ENUM('active', 'archived', 'blocked') DEFAULT 'active'
+- **participant2_status**: ENUM('active', 'archived', 'blocked') DEFAULT 'active'
+- **unread_count_1**: INT DEFAULT 0 - Mensajes no leídos por participante 1
+- **unread_count_2**: INT DEFAULT 0 - Mensajes no leídos por participante 2
+- **created_at**, **updated_at**
+
+##### **3. Groups (tabla: `chat_groups`)**
+Grupos de chat para múltiples usuarios.
+
+- **id**: UUID PK
+- **name**: VARCHAR(200) NOT NULL - Nombre del grupo
+- **description**: TEXT
+- **image_url**: VARCHAR(500) - Avatar del grupo
+- **group_type**: ENUM('community', 'activity', 'private') DEFAULT 'community'
+- **creator_profile_id**: UUID NOT NULL - Creador del grupo
+- **external_id**: UUID NULLABLE - ID de comunidad externa (social-service)
+- **max_members**: INT NULLABLE - Límite de miembros
+- **is_public**: BOOLEAN DEFAULT true
+- **status**: ENUM('active', 'inactive', 'archived') DEFAULT 'active'
+- **settings**: JSON DEFAULT {} - Configuraciones del grupo
+- **member_count**: INT DEFAULT 0
+- **last_message_at**: TIMESTAMP NULLABLE
+- **location**: JSON NULLABLE - Ubicación para actividades
+- **scheduled_at**: TIMESTAMP NULLABLE - Fecha programada para actividades
+- **created_at**, **updated_at**
+
+##### **4. GroupMembers (tabla: `group_members`)**
+Membresías de usuarios en grupos.
+
+- **id**: UUID PK
+- **group_id**: UUID FK → chat_groups.id
+- **profile_id**: UUID NOT NULL - Usuario miembro
+- **role**: ENUM('creator', 'admin', 'moderator', 'member') DEFAULT 'member'
+- **unread_count**: INT DEFAULT 0
+- **last_read_at**: TIMESTAMP NULLABLE
+- **joined_at**: TIMESTAMP DEFAULT NOW
+- **is_muted**: BOOLEAN DEFAULT false
+- **created_at**, **updated_at**
+
+##### **5. UserModel (tabla: `users`)**
+Caché local de perfiles de usuarios para mensajería.
+
+- **id**: UUID PK
+- **profile_id**: UUID UNIQUE - Sincronizado con social-service
+- **display_name**: VARCHAR(100)
+- **avatar_url**: VARCHAR(500)
+- **last_seen**: TIMESTAMP
+- **is_online**: BOOLEAN DEFAULT false
+- **created_at**, **updated_at**
+
+### 🔧 Lógica de Negocio
+
+#### Flujos Principales
+
+**Mensajería 1:1:**
+1. **Crear conversación**: Valida que no exista conversación entre participant1 y participant2
+2. **Enviar mensaje**: 
+   - Crea mensaje con status='sent'
+   - Actualiza last_message_id y last_message_at de conversation
+   - Incrementa unread_count del receptor
+   - Emite evento Socket.io al receptor si está conectado
+3. **Marcar como leído**: 
+   - Cambia status a 'read'
+   - Resetea unread_count del lector
+   - Emite confirmación de lectura al remitente
+4. **Obtener historial**: Paginación de mensajes ordenados por created_at
+5. **Archivar conversación**: Cambia participant_status a 'archived'
+6. **Bloquear usuario**: Cambia participant_status a 'blocked'
+
+**Mensajería Grupal:**
+1. **Crear grupo**: 
+   - Define name, description, group_type
+   - Creator se añade automáticamente como GroupMember con role='creator'
+   - Si external_id existe, vincula con comunidad del social-service
+2. **Añadir miembros**: Crea GroupMember, incrementa member_count
+3. **Enviar mensaje al grupo**:
+   - Crea mensaje con group_id
+   - Incrementa unread_count de todos los miembros excepto el sender
+   - Emite mensaje via Socket.io a todos los miembros conectados
+4. **Gestión de roles**: creator/admin pueden asignar moderadores
+5. **Abandonar grupo**: Elimina GroupMember, decrementa member_count
+6. **Silenciar grupo**: is_muted=true para notificaciones
+
+**Funcionalidades de Mensajes:**
+1. **Responder mensaje**: reply_to_id apunta al mensaje original
+2. **Editar mensaje**: Actualiza content, marca is_edited=true
+3. **Eliminar mensaje**: Soft delete (is_deleted=true) o hard delete
+4. **Enviar multimedia**: Upload de imagen/video/audio, almacena media_url
+5. **Mensajes de sistema**: message_type='system' para eventos (usuario unido, salió, etc.)
+
+**Estado de Presencia:**
+1. **Actualizar estado online**: is_online=true al conectarse via Socket.io
+2. **Last seen**: Actualiza last_seen al desconectarse
+3. **Sincronización de perfil**: Actualiza display_name y avatar_url desde social-service
+
+### 💡 Lógica de Aplicación
+
+**Arquitectura DDD (Domain-Driven Design):**
+- **Domain/Entities:** Message, Conversation, Group, GroupMember
+- **Domain/Repositories:** Interfaces de persistencia
+- **Infrastructure:** Implementación Sequelize + Socket.io
+
+**WebSocket (Socket.io):**
+- **Conexión autenticada**: Valida JWT al conectar
+- **Rooms dinámicos**: Un room por conversación/grupo
+- **Eventos:**
+  - `message:send` - Envío de mensaje
+  - `message:delivered` - Confirmación de entrega
+  - `message:read` - Confirmación de lectura
+  - `typing:start` / `typing:stop` - Indicador de escritura
+  - `user:online` / `user:offline` - Estado de presencia
+
+**Integraciones:**
+- **Social-Service**: Sincroniza perfiles de usuarios
+- **Notifications-Service**: Envía push notification cuando usuario offline
+- **JWT**: Autenticación compartida con auth-service
+
+### 📍 Ubicación de Datos
+
+```
+MySQL Database (messaging_db)
+├── messages (mensajes individuales)
+├── conversations (chats 1:1)
+├── chat_groups (grupos de chat)
+├── group_members (membresías)
+└── users (caché de perfiles)
+
+Socket.io In-Memory:
+├── Conexiones activas de usuarios
+├── Rooms de conversaciones
+└── Rooms de grupos
+```
+
+---
+
+## 4️⃣ NOTIFICATIONS-SERVICE-AURA
+
+### 📊 Capa de Persistencia
+
+**Base de Datos:** PostgreSQL  
+**ORM:** Prisma  
+**Tecnología:** Firebase Cloud Messaging (FCM)
+
+#### Modelos de Datos
+
+##### **1. UserDevices (tabla: `user_devices`)**
+Tokens FCM de dispositivos registrados por usuario.
+
+- **id**: UUID PK
+- **userId**: VARCHAR - ID del usuario (desde auth-service)
+- **fcmToken**: VARCHAR UNIQUE - Token FCM único por dispositivo
+- **deviceInfo**: VARCHAR NULLABLE - Info del dispositivo (navegador, OS, modelo)
+- **createdAt**: TIMESTAMP DEFAULT NOW
+- **updatedAt**: TIMESTAMP (auto-actualizado)
+
+**Índice:** userId (búsquedas rápidas)  
+**Índice único:** fcmToken (previene duplicados)
+
+### 🔧 Lógica de Negocio
+
+#### Operaciones Principales
+
+1. **Registrar dispositivo:**
+   - Usuario envía fcmToken al autenticarse
+   - Almacena token con userId
+   - deviceInfo opcional: User-Agent, plataforma
+
+2. **Enviar notificación push:**
+   - **Notificación individual**: Busca fcmTokens del userId destino
+   - **Notificación masiva**: Envía a múltiples usuarios
+   - **Payload FCM:**
+     ```json
+     {
+       "notification": {
+         "title": "Título",
+         "body": "Mensaje",
+         "icon": "URL del ícono"
+       },
+       "data": {
+         "type": "message|friend_request|like|comment",
+         "entityId": "UUID",
+         "click_action": "deep_link"
+       }
+     }
+     ```
+
+3. **Gestión de tokens:**
+   - **Actualizar token**: Si cambia dispositivo o reinstala app
+   - **Eliminar token**: Al hacer logout (sincronizado con auth-service)
+   - **Limpiar tokens inválidos**: FCM retorna error, elimina de BD
+
+4. **Tipos de notificaciones soportadas:**
+   - **Mensajes nuevos**: Desde aura-messaging-service
+   - **Solicitudes de amistad**: Desde social-service
+   - **Likes en publicaciones**: Desde social-service
+   - **Comentarios**: Desde social-service
+   - **Menciones**: Cuando usuario es etiquetado
+   - **Eventos de comunidad**: Recordatorios de actividades
+
+### 💡 Lógica de Aplicación
+
+**Arquitectura:**
+- **TypeScript** para type safety
+- **Prisma** como ORM
+- **Firebase Admin SDK** para FCM
+- **Express** como framework HTTP
+
+**Endpoints REST:**
+- `POST /devices/register` - Registra nuevo token FCM
+- `POST /notifications/send` - Envía notificación a usuario(s)
+- `DELETE /devices/:fcmToken` - Elimina token al logout
+- `GET /devices/user/:userId` - Lista dispositivos del usuario
+
+**Integración con Microservicios:**
+- **Auth-service**: Obtiene userId de JWT
+- **Messaging-service**: Escucha eventos de mensajes nuevos
+- **Social-service**: Escucha eventos de interacciones sociales
+
+**Manejo de Errores FCM:**
+- `INVALID_TOKEN`: Elimina token de BD
+- `NOT_REGISTERED`: Token expirado, elimina
+- `MESSAGE_TOO_BIG`: Limita payload a 4KB
+- Retry automático con backoff exponencial
+
+### 📍 Ubicación de Datos
+
+```
+PostgreSQL Database
+└── user_devices (tokens FCM)
+
+Firebase Cloud Messaging
+└── Push notifications en cola
+```
+
+---
+
+## 📊 RESUMEN DE DATOS ALMACENADOS
+
+### PostgreSQL (Auth + Notifications)
+
+| Tabla | Registros Típicos | Datos Sensibles |
+|-------|-------------------|-----------------|
+| users | Usuarios registrados | password_hash, email |
+| roles | 2 (admin, user) | No |
+| device_tokens | 1-5 por usuario | Tokens FCM |
+| password_resets | Temporal (24h) | Tokens de reseteo |
+| user_devices | 1-3 por usuario | Tokens FCM |
+
+**Total estimado:** 5 tablas, crecimiento lineal con usuarios
+
+### MySQL (Social + Messaging)
+
+| Tabla | Registros Típicos | Volumen |
+|-------|-------------------|---------|
+| user_profiles | 1 por usuario | Alto |
+| posts | N por usuario | Muy Alto |
+| media | 1-10 por post | Muy Alto |
+| comments | M por post | Muy Alto |
+| likes | K por post/comment | Extremadamente Alto |
+| communities | Cientos | Medio |
+| friendships | N*(N-1)/2 (peor caso) | Alto |
+| messages | Miles por conversación | Extremadamente Alto |
+| conversations | N*(N-1)/2 (peor caso) | Alto |
+| chat_groups | Cientos | Medio |
+
+**Total estimado:** 15 tablas, crecimiento exponencial
+
+---
+
+## 🔗 RELACIONES ENTRE MICROSERVICIOS
+
+```mermaid
+graph TB
+    A[auth-service-aura] -->|user_id| B[social-service]
+    A -->|user_id| C[aura-messaging-service]
+    A -->|userId| D[notifications-service-aura]
+    A -->|deviceToken| D
+    B -->|profile_id| C
+    B -->|eventos sociales| D
+    C -->|nuevos mensajes| D
+    B -->|external_id| C
+```
+
+**Sincronización:**
+- **user_id** es el identificador común entre todos los servicios
+- No hay foreign keys físicas entre bases de datos diferentes
+- Validación de integridad referencial vía API calls o eventos
+
+---
+
+## 🎯 USO DE DATOS A NIVEL DE NEGOCIO
+
+### Auth-Service
+- **Autenticación y autorización**: Validación de credenciales
+- **Recuperación de cuentas**: Reseteo de contraseñas
+- **Gestión de sesiones**: Tokens JWT y dispositivos
+- **Control de acceso**: Roles y permisos
+
+### Social-Service
+- **Red social**: Publicaciones, likes, comentarios
+- **Conexiones humanas**: Amistades y relaciones
+- **Comunidades**: Agrupación por intereses
+- **Matching de usuarios**: Algoritmos de compatibilidad
+- **Feed personalizado**: Contenido relevante por usuario
+- **Métricas sociales**: Popularidad, engagement
+
+### Messaging-Service
+- **Comunicación en tiempo real**: Chats 1:1 y grupales
+- **Historial de conversaciones**: Búsqueda y recuperación
+- **Estado de presencia**: Online/offline/last seen
+- **Notificaciones de actividad**: Typing indicators
+- **Integración con comunidades**: Chats automáticos por comunidad
+
+### Notifications-Service
+- **Push notifications**: Alertas en tiempo real
+- **Gestión de dispositivos**: Multi-device support
+- **Engagement**: Re-engagement de usuarios inactivos
+- **Notificaciones transaccionales**: Confirmaciones de acciones
+
+---
+
+## ⚙️ LÓGICA DE APLICACIÓN
+
+### Patrones Arquitectónicos
+
+1. **Microservicios**: Separación de responsabilidades
+2. **Clean Architecture** (social-service): Domain → Application → Infrastructure → Presentation
+3. **DDD** (messaging-service): Entities, Repositories, Use Cases
+4. **REST API**: Comunicación HTTP entre servicios
+5. **WebSockets**: Comunicación en tiempo real (Socket.io)
+6. **Event-Driven** (parcial): Notificaciones push basadas en eventos
+
+### Seguridad
+
+- **Autenticación JWT**: Tokens compartidos entre servicios
+- **Encriptación bcrypt**: Password hashing con 10 salt rounds
+- **CORS configurado**: Orígenes permitidos
+- **Helmet**: Headers HTTP seguros
+- **Validación de entrada**: Express-validator en todas las rutas
+- **Sanitización**: Prevención de XSS e inyección SQL (ORM)
+- **HTTPS**: Requerido en producción
+
+### Performance
+
+- **Índices en BD**: Optimización de queries frecuentes
+- **Paginación**: Limitación de resultados en listados
+- **Caché (potencial)**: Redis para sesiones y datos frecuentes
+- **CDN**: Cloudinary para contenido multimedia
+- **Conexiones persistentes**: Socket.io para chat
+- **Lazy loading**: Media items cargados bajo demanda
+
+### Escalabilidad
+
+- **Bases de datos separadas**: Escalado horizontal independiente
+- **Stateless APIs**: Fácil balanceo de carga
+- **ORM**: Abstracción de base de datos
+- **Migraciones**: Sequelize/Prisma para versionado de esquemas
+
+---
+
+## 🔍 RECOMENDACIONES DE ANÁLISIS EXPLORATORIO
+
+### 1. Análisis de Calidad de Datos
+
+**Integridad Referencial:**
+```sql
+-- Verificar user_ids huérfanos en social-service
+SELECT DISTINCT user_id FROM user_profiles 
+WHERE user_id NOT IN (SELECT user_id FROM auth_service.users);
+
+-- Verificar posts sin perfil asociado
+SELECT COUNT(*) FROM posts p
+LEFT JOIN user_profiles up ON p.user_id = up.user_id
+WHERE up.id IS NULL;
+```
+
+**Consistencia de Métricas:**
+```sql
+-- Validar followers_count vs relaciones reales
+SELECT 
+  user_id,
+  followers_count,
+  (SELECT COUNT(*) FROM friendships 
+   WHERE addressee_id = user_id AND status = 'accepted') AS actual_followers
+FROM user_profiles
+WHERE followers_count != (SELECT COUNT(*) FROM friendships 
+                          WHERE addressee_id = user_id AND status = 'accepted');
+```
+
+**Datos Duplicados:**
+```sql
+-- Usuarios con múltiples perfiles
+SELECT user_id, COUNT(*) FROM user_profiles GROUP BY user_id HAVING COUNT(*) > 1;
+
+-- Tokens FCM duplicados
+SELECT fcmToken, COUNT(*) FROM user_devices GROUP BY fcmToken HAVING COUNT(*) > 1;
+```
+
+### 2. Análisis de Volumetría
+
+**Crecimiento Temporal:**
+```sql
+-- Registros de usuarios por mes
+SELECT DATE_FORMAT(created_at, '%Y-%m') AS mes, COUNT(*) 
+FROM users GROUP BY mes ORDER BY mes;
+
+-- Publicaciones por día (último mes)
+SELECT DATE(created_at) AS fecha, COUNT(*) 
+FROM posts 
+WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+GROUP BY fecha;
+```
+
+**Distribución de Tipos:**
+```sql
+-- Distribución de tipos de publicaciones
+SELECT type, COUNT(*) AS total, 
+       ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM posts), 2) AS porcentaje
+FROM posts GROUP BY type;
+
+-- Distribución de tipos de mensajes
+SELECT message_type, COUNT(*) 
+FROM messages GROUP BY message_type;
+```
+
+### 3. Análisis de Relaciones
+
+**Grafo Social:**
+```sql
+-- Usuarios más conectados (influencers)
+SELECT user_id, followers_count 
+FROM user_profiles 
+ORDER BY followers_count DESC LIMIT 20;
+
+-- Densidad de red (ratio amistades/usuarios)
+SELECT 
+  (SELECT COUNT(*) FROM friendships WHERE status = 'accepted') AS amistades,
+  (SELECT COUNT(*) FROM user_profiles) AS usuarios,
+  (SELECT COUNT(*) FROM friendships WHERE status = 'accepted') * 1.0 / 
+  (SELECT COUNT(*) FROM user_profiles) AS ratio_conectividad;
+```
+
+**Comunidades Activas:**
+```sql
+-- Comunidades con más miembros
+SELECT c.name, c.category, c.members_count
+FROM communities c
+ORDER BY c.members_count DESC LIMIT 20;
+
+-- Comunidades sin actividad reciente
+SELECT c.id, c.name, c.created_at
+FROM communities c
+LEFT JOIN community_members cm ON c.id = cm.community_id
+WHERE cm.joined_at < DATE_SUB(NOW(), INTERVAL 90 DAY)
+OR cm.id IS NULL;
+```
+
+### 4. Análisis de Engagement
+
+**Engagement en Publicaciones:**
+```sql
+-- Posts con más interacciones
+SELECT 
+  p.id,
+  p.content,
+  p.likes_count,
+  p.comments_count,
+  p.shares_count,
+  (p.likes_count + p.comments_count * 2 + p.shares_count * 3) AS engagement_score
+FROM posts p
+ORDER BY engagement_score DESC LIMIT 50;
+
+-- Usuarios más activos (por publicaciones)
+SELECT user_id, COUNT(*) AS total_posts
+FROM posts
+WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+GROUP BY user_id
+ORDER BY total_posts DESC LIMIT 20;
+```
+
+**Engagement en Mensajería:**
+```sql
+-- Conversaciones más activas
+SELECT conversation_id, COUNT(*) AS message_count
+FROM messages
+WHERE conversation_id IS NOT NULL
+GROUP BY conversation_id
+ORDER BY message_count DESC LIMIT 20;
+
+-- Grupos más activos
+SELECT g.name, COUNT(m.id) AS message_count
+FROM chat_groups g
+LEFT JOIN messages m ON g.id = m.group_id
+GROUP BY g.id, g.name
+ORDER BY message_count DESC LIMIT 20;
+```
+
+### 5. Análisis de Retención
+
+**Usuarios Activos:**
+```sql
+-- DAU/WAU/MAU
+SELECT 
+  COUNT(DISTINCT CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 1 DAY) 
+        THEN user_id END) AS DAU,
+  COUNT(DISTINCT CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) 
+        THEN user_id END) AS WAU,
+  COUNT(DISTINCT CASE WHEN last_active_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) 
+        THEN user_id END) AS MAU
+FROM user_profiles;
+
+-- Tasa de retención (usuarios activos en mes N que volvieron en mes N+1)
+-- Requiere análisis por cohortes
+```
+
+**Usuarios Inactivos:**
+```sql
+-- Usuarios fantasma (nunca crearon perfil social)
+SELECT u.user_id, u.email, u.created_at
+FROM users u
+LEFT JOIN user_profiles up ON u.user_id = up.user_id
+WHERE up.id IS NULL;
+
+-- Usuarios registrados sin actividad reciente
+SELECT user_id, display_name, last_active_at,
+       DATEDIFF(NOW(), last_active_at) AS dias_inactivo
+FROM user_profiles
+WHERE last_active_at < DATE_SUB(NOW(), INTERVAL 60 DAY)
+ORDER BY last_active_at;
+```
+
+### 6. Análisis de Preferencias e Intereses
+
+**Categorías Populares:**
+```sql
+-- Preferencias más comunes
+SELECT 
+  JSON_UNQUOTE(JSON_EXTRACT(preferences, CONCAT('$[', numbers.n, ']'))) AS preferencia,
+  COUNT(*) AS usuarios
+FROM user_preferences
+CROSS JOIN (SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 
+            UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7
+            UNION SELECT 8 UNION SELECT 9 UNION SELECT 10 UNION SELECT 11) numbers
+WHERE JSON_EXTRACT(preferences, CONCAT('$[', numbers.n, ']')) IS NOT NULL
+GROUP BY preferencia
+ORDER BY usuarios DESC;
+
+-- Categorías de comunidades más populares
+SELECT category, COUNT(*) AS total_comunidades, SUM(members_count) AS total_miembros
+FROM communities
+GROUP BY category
+ORDER BY total_miembros DESC;
+```
+
+### 7. Análisis de Contenido Multimedia
+
+**Storage Utilizado:**
+```sql
+-- Tamaño total de media por tipo
+SELECT 
+  type,
+  COUNT(*) AS archivos,
+  SUM(size) / 1024 / 1024 / 1024 AS total_GB,
+  AVG(size) / 1024 / 1024 AS promedio_MB
+FROM media
+GROUP BY type;
+
+-- Posts con más archivos multimedia
+SELECT post_id, COUNT(*) AS media_count
+FROM media
+GROUP BY post_id
+ORDER BY media_count DESC LIMIT 20;
+```
+
+### 8. Análisis de Seguridad
+
+**Intentos de Recuperación de Contraseña:**
+```sql
+-- Intentos fallidos o repetidos
+SELECT user_id, COUNT(*) AS intentos
+FROM password_resets
+WHERE used = false AND expires_at < NOW()
+GROUP BY user_id
+HAVING COUNT(*) > 3;
+
+-- Usuarios bloqueados
+SELECT requester_id, COUNT(*) AS usuarios_bloqueados
+FROM friendships
+WHERE status = 'blocked'
+GROUP BY requester_id
+ORDER BY usuarios_bloqueados DESC;
+```
+
+### 9. Análisis de Dispositivos
+
+**Diversidad de Plataformas:**
+```sql
+-- Distribución de dispositivos
+SELECT 
+  CASE 
+    WHEN deviceInfo LIKE '%Android%' THEN 'Android'
+    WHEN deviceInfo LIKE '%iOS%' THEN 'iOS'
+    WHEN deviceInfo LIKE '%Windows%' THEN 'Windows'
+    WHEN deviceInfo LIKE '%Mac%' THEN 'Mac'
+    ELSE 'Otros'
+  END AS plataforma,
+  COUNT(*) AS dispositivos
+FROM user_devices
+GROUP BY plataforma;
+
+-- Usuarios con múltiples dispositivos
+SELECT userId, COUNT(*) AS num_dispositivos
+FROM user_devices
+GROUP BY userId
+HAVING COUNT(*) > 1
+ORDER BY num_dispositivos DESC;
+```
+
+### 10. Machine Learning / Recomendaciones
+
+**Features para Algoritmos:**
+- **User Profiling**: preferences, interests, hobbies, communities joined
+- **Content-Based Filtering**: tags en posts, categorías de comunidades
+- **Collaborative Filtering**: likes compartidos, amigos en común
+- **Graph Analysis**: PageRank de usuarios, detección de comunidades
+- **Engagement Prediction**: patrones de actividad temporal
+- **Churn Prediction**: días de inactividad, decrecimiento de engagement
+
+**Datasets Sugeridos:**
+```sql
+-- Dataset para sistema de recomendación de usuarios
+SELECT 
+  u.user_id,
+  u.followers_count,
+  u.following_count,
+  u.posts_count,
+  up.preferences,
+  GROUP_CONCAT(i.name) AS interests,
+  GROUP_CONCAT(c.category) AS comunidades
+FROM user_profiles u
+LEFT JOIN user_preferences up ON u.user_id = up.user_id
+LEFT JOIN interests i ON u.user_id = i.user_id
+LEFT JOIN community_members cm ON u.user_id = cm.user_id
+LEFT JOIN communities c ON cm.community_id = c.id
+GROUP BY u.user_id;
+```
+
+---
+
+## 📈 MÉTRICAS CLAVE (KPIs) A MONITOREAR
+
+### Métricas de Usuario
+- **Total de usuarios registrados** (auth-service.users)
+- **Usuarios con perfil completo** (social-service.user_profiles)
+- **DAU/WAU/MAU** (last_active_at)
+- **Tasa de conversión** (registro → perfil completo)
+- **Churn rate** (usuarios inactivos > 30 días)
+
+### Métricas de Contenido
+- **Total de publicaciones** (posts.count)
+- **Posts por usuario** (AVG posts_count)
+- **Engagement rate** ((likes + comments) / posts)
+- **Contenido multimedia** (% posts con media)
+- **Comentarios por post** (AVG comments_count)
+
+### Métricas Sociales
+- **Amistades activas** (friendships.status = 'accepted')
+- **Tasa de aceptación** (accepted / (accepted + rejected))
+- **Comunidades activas** (communities.is_active = true)
+- **Miembros promedio por comunidad** (AVG members_count)
+- **Usuarios verificados** (is_verified = true)
+
+### Métricas de Mensajería
+- **Mensajes enviados/día** (messages por día)
+- **Conversaciones activas** (last_message_at reciente)
+- **Usuarios en tiempo real** (Socket.io connections)
+- **Tasa de respuesta** (mensajes bidireccionales)
+- **Grupos activos** (chat_groups con mensajes recientes)
+
+### Métricas de Notificaciones
+- **Dispositivos registrados** (user_devices)
+- **Notificaciones enviadas/día** (FCM logs)
+- **Tasa de apertura** (click-through rate)
+- **Tokens inválidos** (errores FCM)
+
+---
+
+## 🚨 POTENCIALES PROBLEMAS IDENTIFICADOS
+
+### Escalabilidad
+1. **Likes table**: Crecimiento extremadamente rápido, considerar particionamiento
+2. **Messages table**: Retención infinita, implementar archivado de mensajes antiguos
+3. **Media storage**: Sin límite de uploads, implementar cuotas por usuario
+4. **Conexiones Socket.io**: Limitadas por memoria del servidor, considerar clustering
+
+### Seguridad
+1. **Password resets**: Sin rate limiting, vulnerable a spam
+2. **Device tokens**: Sin rotación automática de tokens FCM
+3. **User_id validation**: No hay validación de existencia en auth-service desde otros servicios
+4. **CORS**: Configuración debe ser revisada para producción
+
+### Consistencia de Datos
+1. **Métricas denormalizadas**: followers_count, posts_count pueden desincronizarse
+2. **Cascade deletes**: Eliminación de usuario no propagada a social/messaging services
+3. **Orphaned records**: user_id en social-service sin registro en auth-service
+
+### Performance
+1. **N+1 queries**: Potencial en relaciones Sequelize sin eager loading
+2. **JSON fields**: Búsqueda en preferences/metadata no indexada
+3. **Sin caché**: Todas las queries van directo a BD
+4. **Media URLs**: Sin CDN cache headers configurados
+
+---
+
+## ✅ CONCLUSIONES
+
+### Fortalezas del Sistema
+✅ Arquitectura de microservicios bien separada  
+✅ Uso apropiado de bases de datos (PostgreSQL para transaccional, MySQL para contenido)  
+✅ ORM modernos (Prisma, Sequelize) con migrations  
+✅ Real-time capabilities (Socket.io)  
+✅ Push notifications integradas (FCM)  
+✅ Seguridad básica implementada (JWT, bcrypt, Helmet)  
+✅ Validación de entrada en todas las rutas  
+
+### Áreas de Mejora Críticas
+⚠️ **Comunicación entre servicios**: Implementar message broker (RabbitMQ, Kafka)  
+⚠️ **Sincronización de datos**: Eventos para propagar cambios de usuarios  
+⚠️ **Caché distribuido**: Redis para sesiones y datos frecuentes  
+⚠️ **Monitoreo**: Logging centralizado y métricas (Prometheus, Grafana)  
+⚠️ **Testing**: Cobertura de tests unitarios e integración  
+⚠️ **Documentación API**: Swagger/OpenAPI para cada servicio  
+⚠️ **Rate limiting**: Protección contra abuso de APIs  
+⚠️ **Backup y recuperación**: Estrategia de respaldo de bases de datos  
+
+### Siguiente Fase Recomendada
+1. **Implementar API Gateway**: Kong o NGINX para routing centralizado
+2. **Service Discovery**: Consul o Eureka para registro de servicios
+3. **Distributed Tracing**: Jaeger para debugging de requests entre servicios
+4. **Circuit Breaker**: Resilience patterns para fallos de servicios
+5. **Database Sharding**: Para escalar horizontalmente cuando sea necesario
+
+---
+
+**Documento generado:** 2025-11-27  
+**Versión del análisis:** 1.0  
+**Autor:** Análisis automatizado de arquitectura

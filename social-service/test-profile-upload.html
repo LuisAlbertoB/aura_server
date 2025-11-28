@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Profile Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Profile Upload - Social Service</h1>
+    
+    <div class="info">
+        <strong>Endpoint:</strong> POST http://54.146.237.63:3001/api/v1/profiles<br>
+        <strong>Content-Type:</strong> multipart/form-data<br>
+        <strong>Auth:</strong> Bearer token requerido
+    </div>
+
+    <form id="profileForm">
+        <div class="form-group">
+            <label for="token">JWT Token (Bearer):</label>
+            <input type="password" id="token" placeholder="Ingresa tu token JWT" required>
+        </div>
+
+        <div class="form-group">
+            <label for="displayName">Display Name (REQUERIDO):</label>
+            <input type="text" id="displayName" maxlength="100" placeholder="Nombre a mostrar" required>
+        </div>
+
+        <div class="form-group">
+            <label for="avatar">Avatar (REQUERIDO - JPG/PNG/GIF/WEBP, máx 5MB):</label>
+            <input type="file" id="avatar" accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" required>
+        </div>
+
+        <div class="form-group">
+            <label for="bio">Bio (Opcional, máx 500 chars):</label>
+            <textarea id="bio" maxlength="500" placeholder="Cuéntanos sobre ti..."></textarea>
+            <small>Caracteres: <span id="bioCount">0</span>/500</small>
+        </div>
+
+        <div class="form-group">
+            <label for="birthDate">Fecha de Nacimiento (Opcional, YYYY-MM-DD):</label>
+            <input type="date" id="birthDate">
+        </div>
+
+        <div class="form-group">
+            <label for="gender">Género (Opcional):</label>
+            <select id="gender">
+                <option value="">-- Seleccionar --</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+            </select>
+        </div>
+
+        <button type="submit" id="submitBtn">Crear Perfil</button>
+    </form>
+
+    <div id="result" class="result" style="display: none;"></div>
+
+    <script>
+        // Actualizar contador de bio
+        document.getElementById('bio').addEventListener('input', function() {
+            const count = this.value.length;
+            document.getElementById('bioCount').textContent = count;
+        });
+
+        // Manejar envío del formulario
+        document.getElementById('profileForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Enviando...';
+            resultDiv.style.display = 'none';
+
+            try {
+                // Preparar datos del formulario
+                const formData = new FormData();
+                
+                const displayName = document.getElementById('displayName').value.trim();
+                const avatar = document.getElementById('avatar').files[0];
+                const bio = document.getElementById('bio').value.trim();
+                const birthDate = document.getElementById('birthDate').value;
+                const gender = document.getElementById('gender').value;
+                const token = document.getElementById('token').value.trim();
+
+                // Validaciones del cliente
+                if (!displayName) {
+                    throw new Error('Display Name es requerido');
+                }
+
+                if (!avatar) {
+                    throw new Error('Avatar es requerido');
+                }
+
+                if (!token) {
+                    throw new Error('Token JWT es requerido');
+                }
+
+                // Validar tamaño del archivo
+                if (avatar.size > 5 * 1024 * 1024) {
+                    throw new Error('La imagen no puede superar 5MB');
+                }
+
+                // Validar tipo de archivo
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+                if (!validTypes.includes(avatar.type)) {
+                    throw new Error('Formato de imagen no válido. Usa JPG, PNG, GIF o WEBP');
+                }
+
+                // Agregar campos al FormData
+                formData.append('displayName', displayName);
+                formData.append('avatar', avatar);
+                
+                if (bio) formData.append('bio', bio);
+                if (birthDate) formData.append('birthDate', birthDate);
+                if (gender) formData.append('gender', gender);
+
+                // Hacer petición
+                const response = await fetch('http://54.146.237.63:3001/api/v1/profiles', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // Mostrar resultado
+                resultDiv.style.display = 'block';
+                if (response.ok) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Éxito!\n\nStatus: ${response.status}\nResponse:\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Error!\n\nStatus: ${response.status}\nResponse:\n${JSON.stringify(data, null, 2)}`;
+                }
+
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Error!\n\n${error.message}`;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Crear Perfil';
+            }
+        });
+
+        // Ejemplos de casos de prueba
+        function fillExample(type) {
+            const examples = {
+                success: {
+                    displayName: 'Juan Pérez Test',
+                    bio: 'Desarrollador Full Stack apasionado por la tecnología',
+                    birthDate: '1990-05-15',
+                    gender: 'male'
+                },
+                minimal: {
+                    displayName: 'Usuario Test',
+                    bio: '',
+                    birthDate: '',
+                    gender: ''
+                },
+                longBio: {
+                    displayName: 'Bio Larga Test',
+                    bio: 'Esta es una biografía muy larga que tiene exactamente 500 caracteres para probar el límite máximo permitido. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint.',
+                    birthDate: '1995-03-20',
+                    gender: 'female'
+                }
+            };
+
+            const example = examples[type];
+            if (example) {
+                Object.keys(example).forEach(key => {
+                    const element = document.getElementById(key);
+                    if (element) element.value = example[key];
+                });
+                // Actualizar contador de bio
+                document.getElementById('bioCount').textContent = example.bio.length;
+            }
+        }
+
+        // Agregar botones de ejemplo
+        const exampleButtons = document.createElement('div');
+        exampleButtons.innerHTML = `
+            <h3>🎯 Casos de Prueba:</h3>
+            <button type="button" onclick="fillExample('success')">Perfil Completo</button>
+            <button type="button" onclick="fillExample('minimal')">Perfil Mínimo</button>
+            <button type="button" onclick="fillExample('longBio')">Bio Larga (500 chars)</button>
+        `;
+        document.querySelector('form').parentNode.insertBefore(exampleButtons, document.querySelector('form'));
+    </script>
+</body>
+</html>

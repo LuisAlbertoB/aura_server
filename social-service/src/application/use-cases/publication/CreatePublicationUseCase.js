@@ -17,41 +17,48 @@ class CreatePublicationUseCase {
     try {
       console.log('🚀 CreatePublicationUseCase - Datos recibidos:', data);
 
-      // VERSIÓN TEMPORAL SIMPLIFICADA - Inserción directa a BD
-      const { PublicationModel } = require('../../../infrastructure/database/models');
-      
       const publicationId = uuidv4();
-      const publicationData = {
-        id: publicationId,
-        user_id: data.authorId,
-        content: data.text || data.content || '',
-        type: data.type || 'text',
-        visibility: data.visibility || 'public',
-        location: null,
-        tags: null,
-        metadata: data.mediaUrls ? JSON.stringify({ mediaUrls: data.mediaUrls }) : null,
-        likes_count: 0,
-        comments_count: 0,
-        shares_count: 0,
-        is_active: true
+      
+      // Construir metadata con URLs de medios
+      const metadata = {
+          mediaUrls: data.mediaUrls || []
       };
 
-      console.log('💾 Intentando insertar en BD:', publicationData);
+      console.log('📦 Metadata construido:', metadata);
 
-      // Inserción directa usando Sequelize
-      const result = await PublicationModel.create(publicationData);
-
-      console.log('✅ Publicación creada exitosamente:', result.toJSON());
-
-      return {
-        id: result.id,
-        user_id: result.user_id,
-        content: result.content,
-        type: result.type,
-        visibility: result.visibility,
-        created_at: result.created_at,
-        toJSON: () => result.toJSON()
+      const dataToInsert = {
+          id: publicationId,
+          user_id: data.authorId,
+          content: data.content || data.text || '',
+          type: data.type || 'text',
+          visibility: data.visibility || 'public',
+          location: data.location || null,
+          tags: data.tags && data.tags.length > 0 
+              ? JSON.stringify(data.tags) 
+              : null,
+          metadata: JSON.stringify(metadata),
+          likes_count: 0,
+          comments_count: 0,
+          shares_count: 0,
+          is_active: true
       };
+
+      console.log('💾 Intentando insertar en BD:', dataToInsert);
+
+      const publication = await this.publicationRepository.create(dataToInsert);
+      
+      console.log('✅ Publicación creada exitosamente:', publication);
+      
+      // Asegurarse de que metadata sea un objeto al retornar
+      if (typeof publication.metadata === 'string') {
+          try {
+              publication.metadata = JSON.parse(publication.metadata);
+          } catch (e) {
+              console.log('⚠️ Error parseando metadata en respuesta');
+          }
+      }
+      
+      return publication;
 
     } catch (error) {
       console.error('❌ Error en CreatePublicationUseCase:', error);

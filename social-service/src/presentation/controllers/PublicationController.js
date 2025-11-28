@@ -36,13 +36,14 @@ class PublicationController {
   async getPublications(req, res) {
     try {
       console.log('📖 GetPublications - query params:', req.query);
+      console.log('👤 GetPublications - user from token:', req.user);
 
       // Extraer parámetros de consulta
       const {
         page = 1,
         limit = 10,
         userId,
-        visibility = 'public'
+        visibility = 'all'
       } = req.query;
 
       // Preparar opciones para el caso de uso
@@ -50,8 +51,11 @@ class PublicationController {
         page: parseInt(page),
         limit: parseInt(limit),
         userId,
+        currentUserId: req.user?.id, // ✅ CRÍTICO: Pasar usuario actual para filtros de visibilidad
         visibility
       };
+
+      console.log('📤 Opciones enviadas al UseCase:', options);
 
       // Ejecutar caso de uso
       const result = await this.getPublicationsUseCase.execute(options);
@@ -102,56 +106,67 @@ class PublicationController {
   async createPublication(req, res) {
     try {
       console.log('📝 CreatePublication - req.body:', req.body);
-      console.log('👤 CreatePublication - req.user:', req.user);
+      console.log('� CreatePublication - req.files:', req.files);
+      console.log('�👤 CreatePublication - req.user:', req.user);
 
-      // 1. Extraer datos de la request (capa de presentación)
-      // Soporte para múltiples formatos de API
-      const { 
-        text,
-        content,
-        type,
-        visibility,
-        mediaUrls 
-      } = req.body;
+      // Extraer datos del body
+      const { content, type, visibility, location, tags } = req.body;
       
-      // El authorId se obtiene SIEMPRE del token validado por el middleware.
-      const authorId = req.user.id;
-      
-      // Determinar el contenido (content tiene prioridad sobre text)
-      const publicationContent = content || text || '';
-      
-      // Files pueden venir del middleware de upload o de mediaUrls
-      const files = req.files || [];
-      
-      // 2. Preparar DTO para el caso de uso
-      const createData = {
-        authorId,
-        text: publicationContent,
-        content: publicationContent, // Ambos para compatibilidad
-        type: type || 'text',
-        visibility: visibility || 'public',
-        files,
-        mediaUrls: mediaUrls || []
+      // Procesar archivos subidos
+      const mediaUrls = [];
+      if (req.files && req.files.length > 0) {
+          console.log(`📤 Procesando ${req.files.length} archivo(s)...`);
+          
+          req.files.forEach((file, index) => {
+              // Construir URL pública del archivo
+              const fileUrl = `http://54.146.237.63:3002/uploads/publications/${file.filename}`;
+              mediaUrls.push(fileUrl);
+              console.log(`✅ Archivo ${index + 1} guardado:`, fileUrl);
+          });
+      }
+
+      // Parsear tags si viene como string
+      let parsedTags = [];
+      if (tags) {
+          try {
+              parsedTags = Array.isArray(tags) ? tags : JSON.parse(tags);
+          } catch (e) {
+              console.log('⚠️ Error parseando tags, usando array vacío');
+          }
+      }
+
+      // Preparar datos para el UseCase
+      const publicationData = {
+          authorId: req.user.id,
+          text: content || '',
+          content: content || '',
+          type: type || 'text',
+          visibility: visibility || 'public',
+          location: location || null,
+          tags: parsedTags,
+          files: req.files || [],
+          mediaUrls: mediaUrls
       };
 
-      console.log('📤 Datos preparados para UseCase:', createData);
+      console.log('📤 Datos preparados para UseCase:', publicationData);
 
-      // 3. Ejecutar caso de uso (aquí está TODA la lógica)
-      const result = await this.createPublicationUseCase.execute(createData);
+      // Llamar al caso de uso
+      const publication = await this.createPublicationUseCase.execute(publicationData);
 
-      // 4. Transformar respuesta (capa de presentación)
+      console.log('✅ Respuesta final del controlador:', publication);
+
       res.status(201).json({
-        success: true,
-        message: 'Publicación creada exitosamente',
-        data: result?.toJSON ? result.toJSON() : result
+          success: true,
+          message: 'Publicación creada exitosamente',
+          data: publication
       });
-
     } catch (error) {
-      console.error('Error en PublicationController:', error.message);
-      console.error('Stack trace:', error.stack);
-      
-      // 5. Manejo de errores HTTP (solo presentación)
-      this._handleError(res, error);
+      console.error('❌ Error creando publicación:', error);
+      res.status(500).json({
+          success: false,
+          message: 'Error al crear publicación',
+          error: error.message
+      });
     }
   }
 

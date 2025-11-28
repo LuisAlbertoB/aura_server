@@ -2,7 +2,7 @@ const rateLimit = require('express-rate-limit');
 
 // Rate limiting general para todas las rutas
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 1 * 60 * 1000, // 15 minutos
   max: 100, // Máximo 100 requests por ventana de tiempo
   message: {
     success: false,

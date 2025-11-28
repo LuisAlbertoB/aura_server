@@ -14,31 +14,83 @@ class GetPublicationsUseCase {
       console.log('📖 GetPublicationsUseCase - Opciones:', options);
 
       // VERSIÓN SIMPLIFICADA - Query directo con Sequelize
-      const { PublicationModel } = require('../../../infrastructure/database/models');
+      const { PublicationModel, UserProfileModel } = require('../../../infrastructure/database/models');
+      const { Op } = require('sequelize');
       
       const {
         page = 1,
         limit = 10,
         userId = null,
-        visibility = 'public'
+        currentUserId = null, // Usuario que hace la petición
+        visibility = 'all'
       } = options;
 
       const offset = (page - 1) * limit;
 
-      // Construir filtros
-      const where = {
+      // Construir filtros base
+      let where = {
         is_active: true
       };
 
+      // Si se especifica un usuario específico
       if (userId) {
         where.user_id = userId;
       }
 
-      if (visibility !== 'all') {
-        where.visibility = visibility;
-      }
+      // ✅ LÓGICA CORRECTA DE VISIBILIDAD
+      if (currentUserId) {
+        console.log('🔒 Aplicando filtros de visibilidad para usuario:', currentUserId);
+        
+        // Obtener amigos del usuario actual
+        let friendIds = [];
+        try {
+          const userProfile = await UserProfileModel.findByPk(currentUserId);
+          if (userProfile && userProfile.friends) {
+            friendIds = JSON.parse(userProfile.friends || '[]');
+          }
+        } catch (e) {
+          console.log('⚠️ No se pudieron obtener amigos del usuario, usando array vacío');
+        }
 
-      console.log('🔍 Query filters:', where);
+        console.log('👥 Amigos del usuario:', friendIds);
+
+        // Crear condiciones de visibilidad
+        const visibilityConditions = [
+          // 1. Publicaciones públicas - todos pueden ver
+          { visibility: 'public' },
+          
+          // 2. Publicaciones privadas - solo el autor puede ver
+          { 
+            visibility: 'private',
+            user_id: currentUserId 
+          }
+        ];
+
+        // 3. Publicaciones de amigos - solo si tiene amigos
+        if (friendIds.length > 0) {
+          visibilityConditions.push({
+            visibility: 'friends',
+            user_id: { [Op.in]: friendIds }
+          });
+        }
+
+        // 4. Sus propias publicaciones de amigos
+        visibilityConditions.push({
+          visibility: 'friends',
+          user_id: currentUserId
+        });
+
+        where = {
+          ...where,
+          [Op.or]: visibilityConditions
+        };
+
+        console.log('🔍 Filtros de visibilidad aplicados:', JSON.stringify(where, null, 2));
+      } else {
+        // Si no hay usuario autenticado, solo mostrar públicas
+        where.visibility = 'public';
+        console.log('🌍 Usuario no autenticado - solo publicaciones públicas');
+      }
 
       // Ejecutar consulta
       const result = await PublicationModel.findAndCountAll({
@@ -67,7 +119,7 @@ class GetPublicationsUseCase {
         updated_at: pub.updated_at
       }));
 
-      console.log(`✅ Encontradas ${result.count} publicaciones`);
+      console.log(`✅ Encontradas ${result.count} publicaciones (después de filtros de visibilidad)`);
 
       return {
         publications,
