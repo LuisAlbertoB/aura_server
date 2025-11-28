@@ -81,6 +81,22 @@ Para aumentar la robustez de la detección, proponemos dos estrategias de ensamb
 
 Este modelo ejecuta los tres algoritmos en paralelo y toma una decisión basada en "votos". Es ideal para reducir la varianza y evitar sesgos de un solo algoritmo.
 
+```mermaid
+graph LR
+    Input[Datos de Usuario] --> KM[K-Means]
+    Input --> DB[DBSCAN]
+    Input --> IF[Isolation Forest]
+    
+    KM -->|Voto: Riesgo/No| V{Votación}
+    DB -->|Voto: Riesgo/No| V
+    IF -->|Voto: Riesgo/No| V
+    
+    V -->|>= 2 Votos| R1[ALTO RIESGO]
+    V -->|1 Voto| R2[RIESGO MODERADO]
+    V -->|0 Votos| R3[BAJO RIESGO]
+```
+
+
 *   **Algoritmo A (K-Means)**: Divide usuarios en $k=4$ clusters. Si el usuario cae en el cluster de "centroides de bajo engagement/pocos amigos", vota **RIESGO**.
 *   **Algoritmo B (DBSCAN)**: Busca outliers en zonas de baja densidad. Si el usuario es marcado como ruido (-1), vota **RIESGO**.
 *   **Algoritmo C (Isolation Forest)**: Asigna un score de anomalía. Si el score < umbral (ej. -0.5), vota **RIESGO**.
@@ -90,19 +106,34 @@ Este modelo ejecuta los tres algoritmos en paralelo y toma una decisión basada 
 *   Si **Votos == 1**: Se marca como **RIESGO MODERADO** (Revisión).
 *   Si **Votos == 0**: **BAJO RIESGO**.
 
-### Enfoque 2: Ensamble Jerárquico (Cascading Filter)
+### Enfoque 2: Ensamble Híbrido (Cascading Filter + Supervised)
 
-Este modelo funciona como un embudo para filtrar falsos positivos y categorizar con mayor precisión.
+Este modelo evoluciona hacia un sistema supervisado para filtrar falsos positivos y categorizar con mayor precisión, requiriendo un dataset etiquetado (casos históricos).
 
-1.  **Nivel 1 (K-Means)**: Se utiliza como filtro grueso para separar a la población general de los casos potenciales.
+```mermaid
+graph TD
+    Input[Población Total] --> L1{Nivel 1: K-Means}
+    L1 -->|Cluster Normal| Safe[Descartar / Bajo Riesgo]
+    L1 -->|Cluster Sospechoso| L2{Nivel 2: Random Forest}
+    
+    L2 -->|Clasificación: Bajo Riesgo| Watch[Monitoreo]
+    L2 -->|Clasificación: Alto Riesgo| L3{Nivel 3: XGBoost}
+    
+    L3 -->|Probabilidad > 90%| Crit1[RIESGO CRÍTICO: Intervención Inmediata]
+    L3 -->|Probabilidad 50-90%| Crit2[RIESGO ALTO: Evaluación Prioritaria]
+```
+
+1.  **Nivel 1 (K-Means)**: Se mantiene como filtro grueso no supervisado para reducir el volumen de datos.
     *   *Entrada*: Todos los usuarios.
     *   *Acción*: Los usuarios en clusters "Normales" se descartan. Los usuarios en clusters "Sospechosos" pasan al Nivel 2.
-2.  **Nivel 2 (Isolation Forest)**: Analiza la severidad de los casos sospechosos.
+2.  **Nivel 2 (Random Forest)**: **Clasificador Supervisado**. Reemplaza a Isolation Forest para categorizar el tipo de riesgo basándose en reglas aprendidas.
     *   *Entrada*: Usuarios filtrados del Nivel 1.
-    *   *Acción*: Calcula el *Anomaly Score*. Los que tienen scores muy extremos pasan al Nivel 3 como "Anomalías Críticas".
-3.  **Nivel 3 (DBSCAN)**: Contextualiza la anomalía.
-    *   *Entrada*: Anomalías Críticas.
-    *   *Acción*: Verifica si es un caso aislado (Outlier puro) o si forma parte de un micro-cluster de comportamiento patológico (ej. un grupo de usuarios con comportamiento autodestructivo similar).
+    *   *Ventaja*: Mayor interpretabilidad (feature importance) y capacidad de manejar relaciones no lineales complejas entre variables.
+    *   *Requisito*: Requiere entrenamiento con etiquetas (ej. usuarios diagnosticados previamente).
+3.  **Nivel 3 (XGBoost)**: **Refinamiento de Alta Precisión**. Reemplaza a DBSCAN para el scoring final.
+    *   *Entrada*: Casos clasificados como riesgo por RF.
+    *   *Acción*: Gradient Boosting optimizado para minimizar falsos positivos en casos críticos. Asigna una probabilidad de riesgo extremadamente calibrada.
+    *   *Ventaja*: Estado del arte en datos tabulares, maneja mejor el desbalance de clases que DBSCAN.
 
 ---
 
